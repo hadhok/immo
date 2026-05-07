@@ -93,8 +93,10 @@ export class BieniciScraper extends BaseScraper {
       if (!zipcode.startsWith("33")) return null;
 
       const city = String(ad.city ?? "Bordeaux");
-      const surface = (ad.surfaceArea as number) || undefined;
-      const rooms = (ad.roomsQuantity as number) || undefined;
+      const surfaceRaw = ad.surfaceArea as number | number[] | undefined;
+      const surface = (Array.isArray(surfaceRaw) ? surfaceRaw[0] : surfaceRaw) || undefined;
+      const roomsRaw = ad.roomsQuantity as number | number[] | undefined;
+      const rooms = (Array.isArray(roomsRaw) ? roomsRaw[0] : roomsRaw) || undefined;
 
       const typeKey = String(ad.propertyType ?? "").toLowerCase();
       const propertyType: PropertyType = PROPERTY_TYPE_MAP[typeKey] ?? "APPARTEMENT";

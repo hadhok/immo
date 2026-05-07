@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   for (const source of validSources) {
     try {
       const result = await SCRAPERS[source]().run();
-      summary.push({ source, added: result.added, updated: result.updated, total: result.total, status: result.status });
+      summary.push({ source, added: result.added, updated: result.updated, total: result.total, status: result.status, errorMsg: result.errorMsg });
     } catch (err) {
       summary.push({ source, status: "ERROR", errorMsg: String(err), added: 0, updated: 0, total: 0 });
     }
