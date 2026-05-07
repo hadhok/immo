@@ -1,4 +1,6 @@
 import * as cheerio from "cheerio";
+import type { AnyNode as CheerioEl } from "domhandler";
+type CheerioRoot = ReturnType<typeof cheerio.load>;
 import { BaseScraper } from "./base";
 import type { ListingData, PropertyType } from "@/types/listing";
 
@@ -115,10 +117,7 @@ export class SeLogerScraper extends BaseScraper {
     }
   }
 
-  private parseCard(
-    $: ReturnType<typeof cheerio.load>,
-    el: Parameters<Parameters<ReturnType<typeof cheerio.load>["each"]>[0]>[1]
-  ): ListingData | null {
+  private parseCard($: CheerioRoot, el: CheerioEl): ListingData | null {
     try {
       const $el = $(el);
       const href = $el.find("a").first().attr("href") || "";

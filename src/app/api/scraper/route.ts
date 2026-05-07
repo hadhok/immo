@@ -25,12 +25,11 @@ export async function POST(request: Request) {
     validSources.map((source) => SCRAPERS[source]().run())
   );
 
-  const summary = results.map((r, i) => ({
-    source: validSources[i],
-    ...(r.status === "fulfilled"
-      ? r.value
-      : { status: "ERROR", errorMsg: String(r.reason), added: 0, updated: 0, total: 0 }),
-  }));
+  const summary = results.map((r, i) => {
+    const base = { source: validSources[i] };
+    if (r.status === "fulfilled") return { ...base, ...r.value };
+    return { ...base, status: "ERROR" as const, errorMsg: String(r.reason), added: 0, updated: 0, total: 0 };
+  });
 
   return Response.json({ results: summary });
 }

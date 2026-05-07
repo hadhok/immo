@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import type { PropertyType } from "@/types/listing";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(parseInt(sp.get("limit") || "20", 10), 100);
   const skip = (page - 1) * limit;
 
-  const where: Parameters<typeof prisma.listing.findMany>[0]["where"] = {
+  const where: Prisma.ListingWhereInput = {
     isActive: true,
   };
 

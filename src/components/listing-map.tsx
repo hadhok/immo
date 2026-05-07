@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Listing } from "@/generated/prisma";
+import type { Listing } from "@/generated/prisma/client";
 
 interface Props {
   listings: Listing[];

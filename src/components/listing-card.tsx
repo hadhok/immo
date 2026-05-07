@@ -3,7 +3,7 @@ import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { MapPin, Home, Layers, Calendar } from "lucide-react";
-import type { Listing } from "@/generated/prisma";
+import type { Listing } from "@/generated/prisma/client";
 
 interface Props {
   listing: Listing;

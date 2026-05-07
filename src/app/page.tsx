@@ -1,5 +1,8 @@
+export const dynamic = "force-dynamic";
+
 import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { ListingFilters } from "@/components/listing-filters";
 import { ListingCard } from "@/components/listing-card";
 import { ListingMap } from "@/components/listing-map";
@@ -27,7 +30,7 @@ async function getListings(sp: SearchParams) {
   const limit = 24;
   const skip = (page - 1) * limit;
 
-  const where: Parameters<typeof prisma.listing.findMany>[0]["where"] = { isActive: true };
+  const where: Prisma.ListingWhereInput = { isActive: true };
 
   if (sp.city) where.city = { contains: sp.city, mode: "insensitive" };
   if (sp.zipcode) where.zipcode = { startsWith: sp.zipcode };

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { prisma } from "@/lib/prisma";
 import { ScraperControls } from "@/components/scraper-controls";
 import { Badge } from "@/components/ui/badge";

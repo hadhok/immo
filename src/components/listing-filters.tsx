@@ -152,7 +152,8 @@ export function ListingFilters() {
         <Select
           value={`${sp.get("sortBy") || "scrapedAt"}:${sp.get("sortOrder") || "desc"}`}
           onValueChange={(v) => {
-            const [sortBy, sortOrder] = v.split(":");
+            if (!v) return;
+            const [sortBy = "scrapedAt", sortOrder = "desc"] = v.split(":");
             const params = new URLSearchParams(sp.toString());
             params.set("sortBy", sortBy);
             params.set("sortOrder", sortOrder);

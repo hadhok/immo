@@ -2,7 +2,6 @@ import * as cheerio from "cheerio";
 import { BaseScraper } from "./base";
 import type { ListingData, PropertyType } from "@/types/listing";
 
-const GIRONDE_ZIPCODES = ["33"];
 const BASE_URL = "https://www.pap.fr";
 const SEARCH_URL = `${BASE_URL}/annonce/ventes-immobilier-gironde-g44683?nb-resultats=100`;
 
@@ -13,6 +12,9 @@ const PROPERTY_TYPE_MAP: Record<string, PropertyType> = {
   terrain: "TERRAIN",
   "local commercial": "LOCAL_COMMERCIAL",
 };
+
+import type { AnyNode as CheerioEl } from "domhandler";
+type CheerioRoot = ReturnType<typeof cheerio.load>;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -46,7 +48,7 @@ export class PapScraper extends BaseScraper {
 
       if (cards.length === 0) break;
 
-      cards.each((_, el) => {
+      cards.each((_, el: CheerioEl) => {
         const listing = this.parseCard($, el);
         if (listing) listings.push(listing);
       });
@@ -58,10 +60,7 @@ export class PapScraper extends BaseScraper {
     return listings;
   }
 
-  private parseCard(
-    $: ReturnType<typeof cheerio.load>,
-    el: ReturnType<typeof cheerio.load> extends (html: string) => infer R ? R : never
-  ): ListingData | null {
+  private parseCard($: CheerioRoot, el: CheerioEl): ListingData | null {
     try {
       const $el = $(el);
       const href = $el.attr("href") || "";
@@ -83,7 +82,7 @@ export class PapScraper extends BaseScraper {
       const locationText = $el.find(".item-description, .location").text();
       const zipcodeMatch = locationText.match(/\b(33\d{3})\b/);
       const zipcode = zipcodeMatch?.[1] || "33000";
-      const city = this.extractCity($el, $) || "Bordeaux";
+      const city = this.extractCity($el) || "Bordeaux";
 
       const typeText = title.toLowerCase();
       let propertyType: PropertyType = "APPARTEMENT";
@@ -95,35 +94,19 @@ export class PapScraper extends BaseScraper {
       }
 
       const photos: string[] = [];
-      $el.find("img").each((_, img) => {
+      $el.find("img").each((_, img: CheerioEl) => {
         const src = $(img).attr("src") || $(img).attr("data-src");
         if (src && !src.includes("placeholder")) photos.push(src);
       });
 
-      return {
-        source: "pap",
-        sourceUrl,
-        title,
-        price,
-        surface,
-        rooms,
-        propertyType,
-        city,
-        zipcode,
-        photos,
-      };
+      return { source: "pap", sourceUrl, title, price, surface, rooms, propertyType, city, zipcode, photos };
     } catch {
       return null;
     }
   }
 
-  private extractCity(
-    $el: ReturnType<ReturnType<typeof cheerio.load>>,
-    $: ReturnType<typeof cheerio.load>
-  ): string {
-    const text =
-      $el.find(".location, .item-description, .city").first().text() ||
-      $el.text();
+  private extractCity($el: ReturnType<CheerioRoot>): string {
+    const text = $el.find(".location, .item-description, .city").first().text() || $el.text();
     const match = text.match(/\b([A-ZÀ-Ü][a-zà-ü-]+(?:\s+[A-ZÀ-Ü][a-zà-ü-]+)*)\s+\(33/);
     return match?.[1] || "Bordeaux";
   }
