@@ -1,12 +1,14 @@
+import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
 function createPrismaClient() {
-  const connectionString = process.env.DATABASE_URL!;
-  const adapter = new PrismaPg({
-    connectionString,
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
+    max: 1,
   });
+  const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });
 }
 
