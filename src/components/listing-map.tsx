@@ -10,27 +10,24 @@ interface Props {
 
 function formatPriceShort(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".0", "")}M €`;
-  return `${Math.round(n / 1000)}k €`;
+  if (n >= 1000) return `${Math.round(n / 1000)}k €`;
+  return `${n} €`;
 }
 
 function formatPriceFull(n: number) {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(n);
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 }
 
 function cfColor(cf: number | null): string {
-  if (cf === null) return "#6b7280";
+  if (cf === null) return "#e8401c";
   if (cf > 0) return "#16a34a";
-  if (cf > -300) return "#f97316";
+  if (cf > -300) return "#ea580c";
   return "#dc2626";
 }
 
 const DPE_BG: Record<string, string> = {
   A: "#00b050", B: "#92d050", C: "#cccc00",
-  D: "#ffc000", E: "#ff9900", F: "#ff0000", G: "#7030a0",
+  D: "#ffc000", E: "#ff9900", F: "#ff4500", G: "#c00000",
 };
 
 export function ListingMap({ listings }: Props) {
@@ -42,21 +39,25 @@ export function ListingMap({ listings }: Props) {
 
     (async () => {
       const L = await import("leaflet");
-
       if (!mapRef.current || mapInstanceRef.current) return;
 
       // @ts-expect-error leaflet icon workaround
       delete L.Icon.Default.prototype._getIconUrl;
 
-      const map = L.map(mapRef.current!, { zoomControl: true }).setView([44.837789, -0.57918], 10);
+      const map = L.map(mapRef.current!, {
+        zoomControl: false,
+        scrollWheelZoom: true,
+      }).setView([44.837789, -0.57918], 10);
+
       mapInstanceRef.current = map;
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      L.control.zoom({ position: "topright" }).addTo(map);
+
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>',
         maxZoom: 19,
       }).addTo(map);
 
-      // Charger markercluster APRÈS leaflet (il a besoin de L dans le scope)
       let markerLayer: L.LayerGroup;
       try {
         await import("leaflet.markercluster");
@@ -65,15 +66,17 @@ export function ListingMap({ listings }: Props) {
         if (hasCluster) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           markerLayer = (L as any).markerClusterGroup({
-            maxClusterRadius: 60,
+            maxClusterRadius: 50,
             showCoverageOnHover: false,
+            spiderfyOnMaxZoom: true,
             iconCreateFunction: (cluster: { getChildCount: () => number }) => {
               const n = cluster.getChildCount();
+              const size = n < 10 ? 36 : n < 100 ? 42 : 48;
               return L.divIcon({
                 className: "",
-                html: `<div style="background:#1d4ed8;color:#fff;padding:5px 12px;border-radius:16px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff">${n} biens</div>`,
-                iconSize: [80, 30],
-                iconAnchor: [40, 30],
+                html: `<div style="width:${size}px;height:${size}px;background:#e8401c;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;box-shadow:0 2px 8px rgba(232,64,28,.45);border:2.5px solid #fff">${n}</div>`,
+                iconSize: [size, size],
+                iconAnchor: [size / 2, size / 2],
               });
             },
           });
@@ -91,46 +94,52 @@ export function ListingMap({ listings }: Props) {
 
         const cf = estimateCashFlow(listing);
         const priceSqm = estimatePricePerSqm(listing);
-        const color = cfColor(cf);
-        const label = formatPriceShort(listing.price);
+        const dotColor = cfColor(cf);
         const scrapedMs = new Date(listing.scrapedAt as unknown as string).getTime();
         const isNew = now - scrapedMs < 86_400_000;
 
-        const pillH = isNew ? 46 : 28;
+        // Simple dot marker + price pill on hover (show price pill by default)
+        const priceLabel = formatPriceShort(listing.price);
         const markerHtml = `
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-            ${isNew ? `<div style="background:#1d4ed8;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;letter-spacing:.5px">NOUVEAU</div>` : ""}
-            <div style="background:${color};color:#fff;padding:4px 9px;border-radius:14px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff">${label}</div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+            <div style="background:${dotColor};color:#fff;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:800;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.28);border:2px solid #fff;line-height:1.4">${priceLabel}</div>
+            <div style="width:6px;height:6px;background:${dotColor};border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div>
           </div>`;
 
         const icon = L.divIcon({
           className: "",
           html: markerHtml,
-          iconSize: [72, pillH],
-          iconAnchor: [36, pillH],
+          iconSize: [70, 32],
+          iconAnchor: [35, 32],
         });
 
         const dpeHtml = listing.dpe
-          ? `<span style="background:${DPE_BG[listing.dpe] ?? "#999"};color:${["A","B","C"].includes(listing.dpe) ? "#000" : "#fff"};padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700">DPE ${listing.dpe}</span>`
+          ? `<span style="background:${DPE_BG[listing.dpe] ?? "#999"};color:${["A","B","C"].includes(listing.dpe) ? "#000" : "#fff"};padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700">DPE ${listing.dpe}</span>`
           : "";
 
-        const cfHtml =
-          cf !== null
-            ? `<div style="color:${color};font-weight:700;font-size:13px;margin-top:4px">${cf >= 0 ? "+" : ""}${cf.toLocaleString("fr-FR")} €/mois <span style="font-size:11px;font-weight:400;color:#6b7280">(estimé)</span></div>`
-            : "";
+        const cfHtml = cf !== null
+          ? `<div style="font-weight:700;font-size:13px;color:${dotColor};margin-top:4px">${cf >= 0 ? "+" : ""}${cf.toLocaleString("fr-FR")} €/m <span style="font-weight:400;font-size:11px;color:#6b7280">(estimé)</span></div>`
+          : "";
+
+        const badgesHtml = [
+          isNew ? `<span style="background:#2563eb;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">NOUVEAU</span>` : "",
+          listing.bienNeuf ? `<span style="background:#7c3aed;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">NEUF</span>` : "",
+          listing.venduLoue ? `<span style="background:#d97706;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">LOUÉ</span>` : "",
+        ].filter(Boolean).join(" ");
 
         const marker = L.marker([listing.lat, listing.lng], { icon });
         marker.bindPopup(
-          `<div style="font-family:system-ui,sans-serif;min-width:220px;max-width:260px;line-height:1.5">
-            <div style="font-weight:700;font-size:13px;margin-bottom:6px;line-height:1.3">${listing.title}</div>
-            <div style="font-size:17px;font-weight:800">${formatPriceFull(listing.price)}</div>
-            ${priceSqm ? `<div style="font-size:12px;color:#6b7280">${priceSqm.toLocaleString("fr-FR")} €/m²</div>` : ""}
+          `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;width:240px;line-height:1.5">
+            ${badgesHtml ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">${badgesHtml}</div>` : ""}
+            <div style="font-weight:700;font-size:13px;margin-bottom:6px;line-height:1.3;color:#111">${listing.title}</div>
+            <div style="font-size:18px;font-weight:900;color:#111">${formatPriceFull(listing.price)}</div>
+            ${priceSqm ? `<div style="font-size:12px;color:#6b7280;margin-top:1px">${priceSqm.toLocaleString("fr-FR")} €/m²</div>` : ""}
             ${listing.surface ? `<div style="font-size:12px;color:#6b7280;margin-top:2px">${listing.surface} m²${listing.rooms ? ` · ${listing.rooms} pièces` : ""}</div>` : ""}
-            <div style="margin-top:6px">${dpeHtml}</div>
+            ${dpeHtml ? `<div style="margin-top:6px">${dpeHtml}</div>` : ""}
             ${cfHtml}
-            <a href="/annonce/${listing.id}" style="display:inline-block;margin-top:10px;background:#2563eb;color:#fff;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;text-decoration:none">Voir l'annonce →</a>
+            <a href="/annonce/${listing.id}" style="display:block;margin-top:12px;background:#2563eb;color:#fff;font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;text-decoration:none;text-align:center">Voir l'annonce →</a>
           </div>`,
-          { maxWidth: 280, minWidth: 220 }
+          { maxWidth: 260, minWidth: 240 }
         );
 
         markerLayer.addLayer(marker);

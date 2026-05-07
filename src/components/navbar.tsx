@@ -3,37 +3,46 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, Settings } from "lucide-react";
-
-const links = [
-  { href: "/", label: "Annonces", icon: Home },
-  { href: "/admin", label: "Sources", icon: Settings },
-];
+import { Settings } from "lucide-react";
 
 export function Navbar() {
   const pathname = usePathname();
   return (
-    <header className="border-b bg-background/95 backdrop-blur sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link href="/" className="font-bold text-lg tracking-tight">
-          Immo<span className="text-primary">33</span>
+    <header className="bg-white border-b border-border/60 sticky top-0 z-50" style={{ boxShadow: "0 1px 4px rgba(0,0,0,.06)" }}>
+      <div className="max-w-[1600px] mx-auto px-5 h-14 flex items-center justify-between gap-8">
+
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-1 shrink-0">
+          <span className="text-xl font-black tracking-tight text-foreground">immo</span>
+          <span className="text-xl font-black tracking-tight text-primary">33</span>
+          <span className="ml-2 text-xs font-medium text-muted-foreground hidden sm:block border border-border/60 rounded px-1.5 py-0.5">Gironde</span>
         </Link>
-        <nav className="flex gap-1">
-          {links.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-                pathname === href
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              )}
-            >
-              <Icon className="size-4" />
-              {label}
-            </Link>
-          ))}
+
+        {/* Nav */}
+        <nav className="flex items-center gap-1 ml-auto">
+          <Link
+            href="/"
+            className={cn(
+              "px-4 py-1.5 rounded-full text-sm font-medium transition-all",
+              pathname === "/"
+                ? "bg-primary text-white"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+          >
+            Annonces
+          </Link>
+          <Link
+            href="/admin"
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-all",
+              pathname === "/admin"
+                ? "bg-primary text-white"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+          >
+            <Settings className="size-3.5" />
+            Sources
+          </Link>
         </nav>
       </div>
     </header>

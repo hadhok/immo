@@ -30,7 +30,7 @@ interface SearchParams {
 
 async function getListings(sp: SearchParams) {
   const page = parseInt(sp.page || "1", 10);
-  const limit = 24;
+  const limit = 20;
   const skip = (page - 1) * limit;
 
   const where: Prisma.ListingWhereInput = { isActive: true };
@@ -108,32 +108,35 @@ export default async function HomePage({
   ]);
 
   return (
-    // Plein écran sous la navbar (h-14 = 3.5rem)
     <div className="flex flex-col" style={{ height: "calc(100vh - 3.5rem)" }}>
 
-      {/* Barre de filtres */}
-      <div className="border-b bg-background px-4 py-3 shrink-0">
+      {/* Filter bar */}
+      <div className="bg-white border-b border-border/60 px-5 py-3 shrink-0" style={{ boxShadow: "0 1px 0 rgba(0,0,0,.04)" }}>
         <Suspense>
           <ListingFilters />
         </Suspense>
         <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-          <span><b className="text-foreground">{total}</b> annonce{total > 1 ? "s" : ""} · {mapListings.length} sur la carte</span>
-          <span>Page {page} / {totalPages || 1}</span>
+          <span>
+            <b className="text-foreground font-semibold">{total.toLocaleString("fr-FR")}</b>
+            {" "}annonce{total > 1 ? "s" : ""}
+            {mapListings.length > 0 && <span className="ml-1 text-muted-foreground/70">· {mapListings.length} sur la carte</span>}
+          </span>
+          {totalPages > 1 && <span>Page {page} / {totalPages}</span>}
         </div>
       </div>
 
-      {/* Split : liste | carte */}
+      {/* Split: list | map */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Liste scrollable */}
-        <div className="w-full lg:w-[42%] overflow-y-auto border-r">
+        {/* Scrollable list */}
+        <div className="w-full lg:w-[44%] overflow-y-auto scrollbar-hide">
           {listings.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
-              <p className="text-lg font-medium">Aucune annonce trouvée</p>
-              <p className="text-sm">Lancez une mise à jour depuis la page Sources</p>
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2 py-20">
+              <p className="text-lg font-semibold text-foreground">Aucune annonce trouvée</p>
+              <p className="text-sm">Modifiez vos filtres ou lancez une mise à jour depuis Sources</p>
             </div>
           ) : (
-            <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
+            <div className="p-4 space-y-3">
               {listings.map((listing) => (
                 <ListingCard key={listing.id} listing={listing} />
               ))}
@@ -147,7 +150,7 @@ export default async function HomePage({
           )}
         </div>
 
-        {/* Carte plein écran */}
+        {/* Map */}
         <div className="hidden lg:block flex-1">
           <Suspense fallback={<Skeleton className="w-full h-full" />}>
             <ListingMap listings={mapListings} />
@@ -174,15 +177,15 @@ function PaginationBar({
   };
 
   return (
-    <div className="flex items-center justify-center gap-2 py-4 border-t">
+    <div className="flex items-center justify-center gap-3 py-6 border-t border-border/60">
       {page > 1 && (
-        <a href={buildUrl(page - 1)} className="px-3 py-1.5 border rounded text-sm hover:bg-muted">
+        <a href={buildUrl(page - 1)} className="px-5 py-2 border border-border rounded-full text-sm font-medium hover:border-primary hover:text-primary transition-colors">
           ← Précédent
         </a>
       )}
       <span className="text-sm text-muted-foreground">{page} / {totalPages}</span>
       {page < totalPages && (
-        <a href={buildUrl(page + 1)} className="px-3 py-1.5 border rounded text-sm hover:bg-muted">
+        <a href={buildUrl(page + 1)} className="px-5 py-2 border border-border rounded-full text-sm font-medium hover:border-primary hover:text-primary transition-colors">
           Suivant →
         </a>
       )}

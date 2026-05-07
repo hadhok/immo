@@ -66,3 +66,11 @@ export function estimatePricePerSqm(input: ListingEstimateInput): number | null 
   if (!input.surface || input.surface < 5) return null;
   return Math.round(input.price / input.surface);
 }
+
+export function estimateMonthlyCredit(price: number): number {
+  const fraisNotaire = price * 0.08;
+  const montantEmprunte = price + fraisNotaire - price * DEFAULT_APPORT_RATIO;
+  const mensualite = calcMensualite(montantEmprunte, DEFAULT_TAUX, DEFAULT_DUREE);
+  const assurance = (montantEmprunte * DEFAULT_ASSURANCE) / 12;
+  return Math.round(mensualite + assurance);
+}
