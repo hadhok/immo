@@ -8,8 +8,9 @@ import type { ScraperStatus } from "@/types/listing";
 
 const SOURCES = [
   { id: "pap", label: "PAP.fr", description: "Particulier à particulier" },
-  { id: "seloger", label: "SeLoger", description: "Portail agences & particuliers" },
-  { id: "leboncoin", label: "LeBonCoin", description: "Petites annonces" },
+  { id: "bienici", label: "Bien'ici", description: "Agrégateur agences (API)" },
+  { id: "seloger", label: "SeLoger", description: "Portail agences (anti-bot)" },
+  { id: "leboncoin", label: "LeBonCoin", description: "Petites annonces (anti-bot)" },
 ];
 
 function StatusBadge({ status }: { status: ScraperStatus }) {
@@ -68,7 +69,7 @@ export default async function AdminPage() {
       <ScraperControls />
 
       {/* Tableau de bord par source */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {stats.map(({ source, lastRun, totalListings }) => {
           const sourceInfo = SOURCES.find((s) => s.id === source)!;
           const duration =

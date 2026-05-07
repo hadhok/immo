@@ -7,8 +7,9 @@ import { RefreshCw, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Source, ScraperResult } from "@/types/listing";
 
-const SOURCES: { id: Source; label: string }[] = [
-  { id: "pap", label: "PAP" },
+const SOURCES: { id: Source; label: string; reliable?: boolean }[] = [
+  { id: "pap", label: "PAP", reliable: true },
+  { id: "bienici", label: "Bien'ici", reliable: true },
   { id: "seloger", label: "SeLoger" },
   { id: "leboncoin", label: "LeBonCoin" },
 ];
@@ -44,19 +45,29 @@ export function ScraperControls() {
     <div className="bg-card border rounded-lg p-4 space-y-4">
       <div className="flex flex-wrap gap-2 items-center">
         <Button
-          onClick={() => launch(SOURCES.map((s) => s.id))}
+          onClick={() => launch(SOURCES.filter((s) => s.reliable).map((s) => s.id))}
           disabled={running.size > 0}
           className="gap-2"
         >
           <Zap className={cn("size-4", running.size > 0 && "animate-pulse")} />
-          {running.size > 0 ? "Mise à jour en cours…" : "Tout mettre à jour"}
+          {running.size > 0 ? "Mise à jour en cours…" : "Sources fiables (PAP + Bien'ici)"}
         </Button>
 
-        <div className="flex gap-2">
-          {SOURCES.map(({ id, label }) => (
+        <Button
+          onClick={() => launch(SOURCES.map((s) => s.id))}
+          disabled={running.size > 0}
+          variant="outline"
+          className="gap-2"
+        >
+          <RefreshCw className={cn("size-4", running.size > 0 && "animate-pulse")} />
+          Tout tenter
+        </Button>
+
+        <div className="flex gap-2 ml-auto">
+          {SOURCES.map(({ id, label, reliable }) => (
             <Button
               key={id}
-              variant="outline"
+              variant={reliable ? "secondary" : "outline"}
               size="sm"
               onClick={() => launch([id])}
               disabled={running.has(id) || running.size > 0}
