@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PropertyType {
+  APPARTEMENT
+  MAISON
+  IMMEUBLE
+  TERRAIN
+  LOCAL_COMMERCIAL
+  AUTRE
+}
+
+enum ScraperStatus {
+  RUNNING
+  SUCCESS
+  ERROR
+  BLOCKED
+}
+
+model Listing {
+  id              String       @id @default(cuid())
+  source          String
+  sourceUrl       String       @unique
+  title           String
+  price           Int
+  surface         Float?
+  rooms           Int?
+  bedrooms        Int?
+  floor           Int?
+  totalFloors     Int?
+  propertyType    PropertyType @default(APPARTEMENT)
+  address         String?
+  city            String
+  zipcode         String
+  lat             Float?
+  lng             Float?
+  description     String?      @db.Text
+  photos          String[]
+  dpe             String?
+  ges             String?
+  chargesMensuelles Int?
+  taxeFonciere    Int?
+  publicationDate DateTime?
+  scrapedAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  isActive        Boolean      @default(true)
+
+  @@index([city])
+  @@index([zipcode])
+  @@index([source])
+  @@index([scrapedAt])
+  @@index([price])
+  @@index([surface])
+}
+
+model RentReference {
+  id            String       @id @default(cuid())
+  city          String
+  zipcode       String
+  propertyType  PropertyType
+  avgRentPerSqm Float
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([zipcode, propertyType])
+  @@index([zipcode])
+}
+
+model ScraperRun {
+  id              String        @id @default(cuid())
+  source          String
+  startedAt       DateTime      @default(now())
+  finishedAt      DateTime?
+  listingsAdded   Int           @default(0)
+  listingsUpdated Int           @default(0)
+  listingsTotal   Int           @default(0)
+  status          ScraperStatus @default(RUNNING)
+  errorMsg        String?       @db.Text
+
+  @@index([source])
+  @@index([startedAt])
+}

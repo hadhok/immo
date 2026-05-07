@@ -1,65 +1,184 @@
-import Image from "next/image";
+import { Suspense } from "react";
+import { prisma } from "@/lib/prisma";
+import { ListingFilters } from "@/components/listing-filters";
+import { ListingCard } from "@/components/listing-card";
+import { ListingMap } from "@/components/listing-map";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { PropertyType } from "@/types/listing";
 
-export default function Home() {
+interface SearchParams {
+  page?: string;
+  city?: string;
+  zipcode?: string;
+  source?: string;
+  propertyType?: PropertyType;
+  priceMin?: string;
+  priceMax?: string;
+  surfaceMin?: string;
+  surfaceMax?: string;
+  rooms?: string;
+  sinceHours?: string;
+  sortBy?: string;
+  sortOrder?: string;
+}
+
+async function getListings(sp: SearchParams) {
+  const page = parseInt(sp.page || "1", 10);
+  const limit = 24;
+  const skip = (page - 1) * limit;
+
+  const where: Parameters<typeof prisma.listing.findMany>[0]["where"] = { isActive: true };
+
+  if (sp.city) where.city = { contains: sp.city, mode: "insensitive" };
+  if (sp.zipcode) where.zipcode = { startsWith: sp.zipcode };
+  if (sp.source) where.source = sp.source;
+  if (sp.propertyType) where.propertyType = sp.propertyType;
+
+  if (sp.priceMin || sp.priceMax) {
+    where.price = {};
+    if (sp.priceMin) where.price.gte = parseInt(sp.priceMin, 10);
+    if (sp.priceMax) where.price.lte = parseInt(sp.priceMax, 10);
+  }
+
+  if (sp.surfaceMin || sp.surfaceMax) {
+    where.surface = {};
+    if (sp.surfaceMin) where.surface.gte = parseFloat(sp.surfaceMin);
+    if (sp.surfaceMax) where.surface.lte = parseFloat(sp.surfaceMax);
+  }
+
+  if (sp.rooms) where.rooms = { gte: parseInt(sp.rooms, 10) };
+
+  if (sp.sinceHours) {
+    const since = new Date();
+    since.setHours(since.getHours() - parseInt(sp.sinceHours, 10));
+    where.scrapedAt = { gte: since };
+  }
+
+  const validSorts = ["scrapedAt", "price", "surface", "publicationDate"];
+  const sortBy = validSorts.includes(sp.sortBy || "") ? sp.sortBy! : "scrapedAt";
+  const sortOrder = sp.sortOrder === "asc" ? "asc" : "desc";
+
+  const [listings, total] = await Promise.all([
+    prisma.listing.findMany({ where, orderBy: { [sortBy]: sortOrder }, skip, take: limit }),
+    prisma.listing.count({ where }),
+  ]);
+
+  return { listings, total, page, totalPages: Math.ceil(total / limit) };
+}
+
+async function getRentReferences() {
+  const refs = await prisma.rentReference.findMany();
+  return Object.fromEntries(refs.map((r) => [`${r.zipcode}:${r.propertyType}`, r.avgRentPerSqm]));
+}
+
+// Récupère les annonces avec coordonnées pour la carte (limite à 500)
+async function getMapListings() {
+  return prisma.listing.findMany({
+    where: { isActive: true, lat: { not: null }, lng: { not: null } },
+    take: 500,
+    orderBy: { scrapedAt: "desc" },
+  });
+}
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const sp = await searchParams;
+  const [{ listings, total, page, totalPages }, rentRefs, mapListings] = await Promise.all([
+    getListings(sp),
+    getRentReferences(),
+    getMapListings(),
+  ]);
+
+  // Map zipcode -> loyer m² moyen (tous types confondus, on prend APPARTEMENT par défaut)
+  const rentPerSqmMap = Object.fromEntries(
+    Object.entries(rentRefs)
+      .filter(([k]) => k.endsWith(":APPARTEMENT"))
+      .map(([k, v]) => [k.split(":")[0], v])
+  );
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="max-w-7xl mx-auto px-4 py-6 space-y-4">
+      <Suspense>
+        <ListingFilters />
+      </Suspense>
+
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span><b>{total}</b> annonce{total > 1 ? "s" : ""} trouvée{total > 1 ? "s" : ""}</span>
+        <span>Page {page} / {totalPages || 1}</span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Liste */}
+        <div className="space-y-4">
+          {listings.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <p className="text-lg">Aucune annonce trouvée</p>
+              <p className="text-sm mt-1">Lancez une mise à jour depuis la page Sources</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {listings.map((listing) => (
+                <ListingCard
+                  key={listing.id}
+                  listing={listing}
+                  rentPerSqm={rentPerSqmMap[listing.zipcode]}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Suspense>
+              <PaginationBar page={page} totalPages={totalPages} sp={sp} />
+            </Suspense>
+          )}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Carte */}
+        <div className="h-[600px] lg:sticky lg:top-20">
+          <Suspense fallback={<Skeleton className="w-full h-full rounded-lg" />}>
+            <ListingMap listings={mapListings} rentPerSqmMap={rentPerSqmMap} />
+          </Suspense>
         </div>
-      </main>
+      </div>
+    </div>
+  );
+}
+
+function PaginationBar({
+  page,
+  totalPages,
+  sp,
+}: {
+  page: number;
+  totalPages: number;
+  sp: SearchParams;
+}) {
+  const buildUrl = (p: number) => {
+    const params = new URLSearchParams(sp as Record<string, string>);
+    params.set("page", String(p));
+    return `/?${params.toString()}`;
+  };
+
+  return (
+    <div className="flex items-center justify-center gap-2 pt-4">
+      {page > 1 && (
+        <a href={buildUrl(page - 1)} className="px-3 py-1.5 border rounded text-sm hover:bg-muted">
+          ← Précédent
+        </a>
+      )}
+      <span className="text-sm text-muted-foreground">
+        {page} / {totalPages}
+      </span>
+      {page < totalPages && (
+        <a href={buildUrl(page + 1)} className="px-3 py-1.5 border rounded text-sm hover:bg-muted">
+          Suivant →
+        </a>
+      )}
     </div>
   );
 }
