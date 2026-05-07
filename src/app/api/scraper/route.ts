@@ -1,14 +1,15 @@
-import { PapScraper, SeLogerScraper, LeBonCoinScraper } from "@/lib/scrapers";
+import { PapScraper, SeLogerScraper, LeBonCoinScraper, BieniciScraper } from "@/lib/scrapers";
 import type { BaseScraper } from "@/lib/scrapers";
 import type { Source } from "@/types/listing";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min max (Vercel Pro) — ajuster selon l'hébergement
 
-const SCRAPERS: Record<Source, () => BaseScraper> = {
+const SCRAPERS: Record<string, () => BaseScraper> = {
   pap: () => new PapScraper(),
   seloger: () => new SeLogerScraper(),
   leboncoin: () => new LeBonCoinScraper(),
+  bienici: () => new BieniciScraper(),
 };
 
 export async function POST(request: Request) {
@@ -20,16 +21,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "Aucune source valide" }, { status: 400 });
   }
 
-  // Lancement en parallèle
-  const results = await Promise.allSettled(
-    validSources.map((source) => SCRAPERS[source]().run())
-  );
-
-  const summary = results.map((r, i) => {
-    const base = { source: validSources[i] };
-    if (r.status === "fulfilled") return { ...base, ...r.value };
-    return { ...base, status: "ERROR" as const, errorMsg: String(r.reason), added: 0, updated: 0, total: 0 };
-  });
+  // Lancement séquentiel pour éviter trop de navigateurs en parallèle
+  const summary: Array<{ source: string; status: string; added: number; updated: number; total: number; errorMsg?: string }> = [];
+  for (const source of validSources) {
+    try {
+      const result = await SCRAPERS[source]().run();
+      summary.push({ source, added: result.added, updated: result.updated, total: result.total, status: result.status });
+    } catch (err) {
+      summary.push({ source, status: "ERROR", errorMsg: String(err), added: 0, updated: 0, total: 0 });
+    }
+  }
 
   return Response.json({ results: summary });
 }

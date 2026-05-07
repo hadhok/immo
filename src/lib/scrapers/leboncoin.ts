@@ -1,130 +1,153 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { chromium } = require("playwright-extra") as typeof import("playwright");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const StealthPlugin = require("puppeteer-extra-plugin-stealth") as () => unknown;
 import { BaseScraper } from "./base";
 import type { ListingData, PropertyType } from "@/types/listing";
 
 const BASE_URL = "https://www.leboncoin.fr";
-// API non officielle LBC - plus stable que le scraping HTML
-const API_URL = "https://api.leboncoin.fr/finder/classified/search";
+// Department 33 = Gironde, category 9 = immobilier vente
+const SEARCH_URL = `${BASE_URL}/recherche?category=9&departments=33&owner_type=all&ad_type=offer&sort=time&order=desc`;
 
-const PROPERTY_TYPE_MAP: Record<number, PropertyType> = {
-  1: "MAISON",
-  2: "APPARTEMENT",
-  3: "TERRAIN",
-  4: "IMMEUBLE",
-  5: "LOCAL_COMMERCIAL",
+const PROPERTY_TYPE_MAP: Record<string, PropertyType> = {
+  Appartement: "APPARTEMENT",
+  Maison: "MAISON",
+  Terrain: "TERRAIN",
+  Parking: "AUTRE",
+  Immeuble: "IMMEUBLE",
+  "Local commercial": "LOCAL_COMMERCIAL",
 };
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+type LbcAd = Record<string, unknown>;
+
+function extractNextData(html: string): LbcAd[] {
+  const idx = html.indexOf('__NEXT_DATA__" type="application/json">');
+  if (idx < 0) return [];
+  const start = html.indexOf(">", idx) + 1;
+  const end = html.indexOf("</script>", start);
+  try {
+    const data = JSON.parse(html.substring(start, end)) as Record<string, unknown>;
+    return findAds(data);
+  } catch {
+    return [];
+  }
+}
+
+function findAds(obj: unknown, depth = 0): LbcAd[] {
+  if (depth > 6) return [];
+  if (typeof obj === "object" && obj !== null) {
+    const o = obj as Record<string, unknown>;
+    if ("ads" in o && Array.isArray(o.ads) && o.ads.length > 10) {
+      return o.ads as LbcAd[];
+    }
+    for (const v of Object.values(o)) {
+      const r = findAds(v, depth + 1);
+      if (r.length) return r;
+    }
+  }
+  return [];
+}
+
 export class LeBonCoinScraper extends BaseScraper {
   source = "leboncoin";
 
   async fetchListings(): Promise<ListingData[]> {
+    (chromium as unknown as { use: (plugin: unknown) => void }).use((StealthPlugin as () => unknown)());
+    const browser = await chromium.launch({ headless: true });
     const listings: ListingData[] = [];
-    let offset = 0;
-    const limit = 35;
-    const maxResults = 175; // 5 pages
 
-    while (offset < maxResults) {
-      const body = {
-        filters: {
-          category: { id: "9" }, // Ventes immobilières
-          enums: {
-            ad_type: ["offer"],
-          },
-          location: {
-            departments: ["33"], // Gironde
-          },
-        },
-        limit,
-        offset,
-        sort_by: "time",
-        sort_order: "desc",
-      };
-
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-          Accept: "application/json, text/plain, */*",
-          Origin: "https://www.leboncoin.fr",
-          Referer: "https://www.leboncoin.fr/",
-          "api-key": "ba0c2dad52b3565fd92a15f704b35d75", // clé publique visible dans les requêtes navigateur
-        },
-        body: JSON.stringify(body),
+    try {
+      const ctx = await browser.newContext({
+        userAgent:
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        locale: "fr-FR",
+        viewport: { width: 1440, height: 900 },
+        extraHTTPHeaders: { "Accept-Language": "fr-FR,fr;q=0.9" },
       });
 
-      if (res.status === 403 || res.status === 429) {
-        throw new Error(`blocked: HTTP ${res.status}`);
+      const page = await ctx.newPage();
+      const maxPages = 5;
+
+      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+        const url = pageNum === 1 ? SEARCH_URL : `${SEARCH_URL}&page=${pageNum}`;
+        await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+
+        try {
+          await page.click('[data-testid="Bouton-Accepter"], #didomi-notice-agree-button', { timeout: 3000 });
+          await sleep(1000);
+        } catch {}
+
+        const html = await page.content();
+        const ads = extractNextData(html);
+
+        // Filter to Gironde only and parse
+        const gironde = ads.filter((ad) => {
+          const loc = ad.location as Record<string, unknown> | undefined;
+          return String(loc?.department_id ?? "").startsWith("33") ||
+                 String(loc?.zipcode ?? "").startsWith("33");
+        });
+
+        if (gironde.length === 0 && pageNum > 1) break;
+
+        for (const ad of gironde) {
+          const listing = this.parseAd(ad);
+          if (listing) listings.push(listing);
+        }
+
+        await sleep(2500 + Math.random() * 1000);
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      const data = await res.json();
-      const ads = data?.ads || [];
-      if (ads.length === 0) break;
-
-      for (const ad of ads) {
-        const listing = this.parseAd(ad);
-        if (listing) listings.push(listing);
-      }
-
-      offset += limit;
-      await sleep(2000 + Math.random() * 1000);
+      await ctx.close();
+    } finally {
+      await browser.close();
     }
 
     return listings;
   }
 
-  private parseAd(ad: Record<string, unknown>): ListingData | null {
+  private parseAd(ad: LbcAd): ListingData | null {
     try {
-      const price = (ad.price as number[])?.[0];
+      const price = (ad.price as number[])?.[0] ?? (ad.price as number);
       if (!price) return null;
 
-      const url = ad.url as string;
-      if (!url) return null;
-
-      const attrs = ad.attributes as Array<{ key: string; value: string; value_label?: string }> || [];
-      const getAttr = (key: string) => attrs.find((a) => a.key === key);
-
-      const surface = parseFloat(getAttr("square")?.value || "0") || undefined;
-      const rooms = parseInt(getAttr("rooms")?.value || "0", 10) || undefined;
-      const propertyTypeId = parseInt(getAttr("real_estate_type")?.value || "0", 10);
-      const propertyType: PropertyType = PROPERTY_TYPE_MAP[propertyTypeId] || "APPARTEMENT";
-      const dpe = getAttr("energy_rate")?.value_label;
-      const ges = getAttr("ges")?.value_label;
-
-      const location = ad.location as Record<string, unknown> | undefined;
-      const city = String(location?.city || "Bordeaux");
-      const zipcode = String(location?.zipcode || "33000");
-
+      const location = (ad.location as Record<string, unknown>) ?? {};
+      const zipcode = String(location.zipcode ?? "33000");
       if (!zipcode.startsWith("33")) return null;
 
-      const lat = location?.lat as number | undefined;
-      const lng = location?.lng as number | undefined;
+      const attrs = (ad.attributes as Array<{ key: string; value: string; value_label?: string }>) ?? [];
+      const getAttr = (key: string) => attrs.find((a) => a.key === key);
 
-      const images = ad.images as Record<string, unknown> | undefined;
-      const photos = (images?.urls_large as string[]) || (images?.urls as string[]) || [];
+      const surface = parseFloat(getAttr("square")?.value ?? "0") || undefined;
+      const rooms = parseInt(getAttr("rooms")?.value ?? "0", 10) || undefined;
+      const typeLabel = getAttr("real_estate_type")?.value_label ?? "";
+      const propertyType: PropertyType = PROPERTY_TYPE_MAP[typeLabel] ?? "APPARTEMENT";
+      const dpe = getAttr("energy_rate")?.value_label;
+
+      const images = (ad.images as Record<string, unknown>) ?? {};
+      const photos = ((images.urls_large ?? images.urls) as string[]) ?? [];
 
       return {
         source: "leboncoin",
-        sourceUrl: url.startsWith("http") ? url : `${BASE_URL}${url}`,
-        title: String(ad.subject || ""),
+        sourceUrl: String(ad.url ?? `${BASE_URL}/ad/${ad.list_id}`),
+        title: String(ad.subject ?? ""),
         price,
         surface,
         rooms,
         propertyType,
-        city,
+        city: String(location.city ?? "Bordeaux"),
         zipcode,
-        lat,
-        lng,
-        description: String(ad.body || ""),
-        photos,
+        lat: (location.lat as number) || undefined,
+        lng: (location.lng as number) || undefined,
+        description: String(ad.body ?? ""),
+        photos: photos.filter(Boolean),
         dpe: dpe || undefined,
-        ges: ges || undefined,
-        publicationDate: ad.first_publication_date ? new Date(ad.first_publication_date as string) : undefined,
+        publicationDate: ad.first_publication_date
+          ? new Date(ad.first_publication_date as string)
+          : undefined,
       };
     } catch {
       return null;

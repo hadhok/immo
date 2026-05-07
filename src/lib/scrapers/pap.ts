@@ -1,9 +1,14 @@
 import * as cheerio from "cheerio";
+import { chromium } from "playwright";
 import { BaseScraper } from "./base";
 import type { ListingData, PropertyType } from "@/types/listing";
+import type { AnyNode as CheerioEl } from "domhandler";
+
+type CheerioRoot = ReturnType<typeof cheerio.load>;
 
 const BASE_URL = "https://www.pap.fr";
-const SEARCH_URL = `${BASE_URL}/annonce/ventes-immobilier-gironde-g44683?nb-resultats=100`;
+// Gironde geo ID = 397 on PAP
+const SEARCH_URL = `${BASE_URL}/annonce/vente-immobilier-gironde-33-g397`;
 
 const PROPERTY_TYPE_MAP: Record<string, PropertyType> = {
   appartement: "APPARTEMENT",
@@ -13,9 +18,6 @@ const PROPERTY_TYPE_MAP: Record<string, PropertyType> = {
   "local commercial": "LOCAL_COMMERCIAL",
 };
 
-import type { AnyNode as CheerioEl } from "domhandler";
-type CheerioRoot = ReturnType<typeof cheerio.load>;
-
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -24,37 +26,52 @@ export class PapScraper extends BaseScraper {
   source = "pap";
 
   async fetchListings(): Promise<ListingData[]> {
+    const browser = await chromium.launch({ headless: true });
     const listings: ListingData[] = [];
-    let page = 1;
-    const maxPages = 5;
 
-    while (page <= maxPages) {
-      const url = page === 1 ? SEARCH_URL : `${SEARCH_URL}&page=${page}`;
-
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml",
-          "Accept-Language": "fr-FR,fr;q=0.9",
-        },
+    try {
+      const ctx = await browser.newContext({
+        userAgent:
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        locale: "fr-FR",
+        viewport: { width: 1280, height: 800 },
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status} on ${url}`);
+      const page = await ctx.newPage();
+      let pageNum = 1;
+      const maxPages = 5;
 
-      const html = await res.text();
-      const $ = cheerio.load(html);
-      const cards = $("a.CardLink");
+      while (pageNum <= maxPages) {
+        // PAP pagination: page 1 = base URL, page N = base URL + "-N"
+        const url = pageNum === 1 ? SEARCH_URL : `${SEARCH_URL}-${pageNum}`;
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
 
-      if (cards.length === 0) break;
+        try {
+          await page.click('button:has-text("Accepter")', { timeout: 3000 });
+          await sleep(1000);
+        } catch {}
 
-      cards.each((_, el: CheerioEl) => {
-        const listing = this.parseCard($, el);
-        if (listing) listings.push(listing);
-      });
+        // Wait for listings to render
+        await page.waitForSelector("a.item-title", { timeout: 15000 }).catch(() => {});
 
-      page++;
-      await sleep(1500 + Math.random() * 1000);
+        const html = await page.content();
+        const $ = cheerio.load(html);
+        const cards = $("a.item-title[href*='/annonces/']");
+
+        if (cards.length === 0) break;
+
+        cards.each((_: number, el: CheerioEl) => {
+          const listing = this.parseCard($, el);
+          if (listing) listings.push(listing);
+        });
+
+        pageNum++;
+        await sleep(2000 + Math.random() * 1000);
+      }
+
+      await ctx.close();
+    } finally {
+      await browser.close();
     }
 
     return listings;
@@ -67,47 +84,50 @@ export class PapScraper extends BaseScraper {
       if (!href) return null;
 
       const sourceUrl = href.startsWith("http") ? href : `${BASE_URL}${href}`;
-      const title = $el.find(".item-title").text().trim() || $el.find("h2").text().trim();
 
-      const priceText = $el.find(".price").text().replace(/[^\d]/g, "");
+      // Price: <span class="item-price">
+      const priceText = $el.find("span.item-price").text().replace(/[^\d]/g, "");
       const price = parseInt(priceText, 10);
       if (!price || isNaN(price)) return null;
 
-      const surfaceText = $el.find(".item-description").text().match(/(\d+)\s*m²/)?.[1];
+      // City: <span class="h1"> — may include "(33XXX)" zipcode
+      const cityRaw = $el.find("span.h1").text().trim() || "Bordeaux";
+      const cityZipMatch = cityRaw.match(/^(.*?)\s*\(?(33\d{3})\)?$/);
+      const city = (cityZipMatch?.[1] ?? cityRaw).trim();
+
+      // Tags: <ul class="item-tags"><li>2 pièces</li><li>48 m²</li>...</ul>
+      const tags = $el.find("ul.item-tags li").map((_: number, li: CheerioEl) => $(li).text().trim()).get();
+      const text = tags.join(" ");
+
+      const surfaceText = text.match(/(\d+(?:[,.]\d+)?)\s*m²/)?.[1]?.replace(",", ".");
       const surface = surfaceText ? parseFloat(surfaceText) : undefined;
 
-      const roomsText = $el.find(".item-description").text().match(/(\d+)\s*pièce/)?.[1];
+      const roomsText = text.match(/(\d+)\s*pièce/)?.[1];
       const rooms = roomsText ? parseInt(roomsText, 10) : undefined;
 
-      const locationText = $el.find(".item-description, .location").text();
-      const zipcodeMatch = locationText.match(/\b(33\d{3})\b/);
-      const zipcode = zipcodeMatch?.[1] || "33000";
-      const city = this.extractCity($el) || "Bordeaux";
-
-      const typeText = title.toLowerCase();
+      // Type from href pattern: /annonces/appartement-... or /annonces/maison-...
+      const typeMatch = href.match(/\/annonces\/([a-z-]+)-/);
+      const typeKey = typeMatch?.[1]?.toLowerCase() ?? "";
       let propertyType: PropertyType = "APPARTEMENT";
       for (const [key, val] of Object.entries(PROPERTY_TYPE_MAP)) {
-        if (typeText.includes(key)) {
-          propertyType = val;
-          break;
-        }
+        if (typeKey.includes(key)) { propertyType = val; break; }
       }
 
+      // Zipcode: from city text or href slug (e.g. /annonces/maison-bordeaux-33000-r...)
+      const zipFromCity = cityZipMatch?.[2];
+      const zipFromHref = href.match(/-(33\d{3})-/)?.[1];
+      const zipcode = zipFromCity ?? zipFromHref ?? "33000";
+
+      // Photos: look in parent container
       const photos: string[] = [];
-      $el.find("img").each((_, img: CheerioEl) => {
+      $el.closest("[class]").find("img").each((_: number, img: CheerioEl) => {
         const src = $(img).attr("src") || $(img).attr("data-src");
-        if (src && !src.includes("placeholder")) photos.push(src);
+        if (src && !src.includes("placeholder") && src.startsWith("http")) photos.push(src);
       });
 
-      return { source: "pap", sourceUrl, title, price, surface, rooms, propertyType, city, zipcode, photos };
+      return { source: "pap", sourceUrl, title: `${propertyType === "MAISON" ? "Maison" : "Appartement"} à ${city}`, price, surface, rooms, propertyType, city, zipcode, photos };
     } catch {
       return null;
     }
-  }
-
-  private extractCity($el: ReturnType<CheerioRoot>): string {
-    const text = $el.find(".location, .item-description, .city").first().text() || $el.text();
-    const match = text.match(/\b([A-ZÀ-Ü][a-zà-ü-]+(?:\s+[A-ZÀ-Ü][a-zà-ü-]+)*)\s+\(33/);
-    return match?.[1] || "Bordeaux";
   }
 }
