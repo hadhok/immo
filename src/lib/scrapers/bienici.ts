@@ -102,8 +102,15 @@ export class BieniciScraper extends BaseScraper {
       const adId = String(ad.id ?? "");
       const sourceUrl = `${BASE_URL}/annonce/achat/${adId}`;
 
-      const title = String(ad.title ?? `${propertyType === "MAISON" ? "Maison" : "Appartement"} à ${city}`);
-      const description = String(ad.description ?? "").replace(/<[^>]+>/g, " ").trim();
+      const HTML_ENTITIES: Record<string, string> = {
+        agrave: "à", eacute: "é", egrave: "è", ecirc: "ê", euml: "ë",
+        iacute: "í", ocirc: "ô", ugrave: "ù", ucirc: "û", ccedil: "ç",
+        nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"',
+      };
+      const decodeHtml = (s: string) =>
+        s.replace(/&([a-zA-Z]+|#\d+);/g, (m, e: string) => HTML_ENTITIES[e.toLowerCase()] ?? m);
+      const title = decodeHtml(String(ad.title ?? `${propertyType === "MAISON" ? "Maison" : "Appartement"} à ${city}`));
+      const description = decodeHtml(String(ad.description ?? "").replace(/<[^>]+>/g, " ").trim());
 
       const photos = ((ad.photos as Array<{ url?: string; url_photo?: string }>) ?? [])
         .map((p) => p.url ?? p.url_photo ?? "")
