@@ -90,10 +90,36 @@ export class PapScraper extends BaseScraper {
       const price = parseInt(priceText, 10);
       if (!price || isNaN(price)) return null;
 
-      // City: <span class="h1"> — may include "(33XXX)" zipcode
-      const cityRaw = $el.find("span.h1").text().trim() || "Bordeaux";
-      const cityZipMatch = cityRaw.match(/^(.*?)\s*\(?(33\d{3})\)?$/);
-      const city = (cityZipMatch?.[1] ?? cityRaw).trim();
+      // Title/city: <span class="h1"> contains the listing title (not just city)
+      const titleRaw = $el.find("span.h1").text().trim();
+
+      // Type from href pattern: /annonces/appartement-... or /annonces/maison-...
+      const typeMatch = href.match(/\/annonces\/([a-z-]+)-/);
+      const typeKey = typeMatch?.[1]?.toLowerCase() ?? "";
+      let propertyType: PropertyType = "APPARTEMENT";
+      for (const [key, val] of Object.entries(PROPERTY_TYPE_MAP)) {
+        if (typeKey.includes(key)) { propertyType = val; break; }
+      }
+
+      // Extract city from href slug: /annonces/[type]-[city]-[optionalZip]-r[id]
+      // e.g. /annonces/appartement-bordeaux-33000-r123 → city=bordeaux, zip=33000
+      const hrefSlug = href.replace(/^.*\/annonces\/[a-z]+-/, "").replace(/-r\d+$/, "");
+      const zipFromHref = hrefSlug.match(/-(33\d{3})-?/)?.[1] ?? hrefSlug.match(/^(33\d{3})/)?.[1];
+      const citySlug = hrefSlug.replace(/(33\d{3}|-r\d+).*/g, "").replace(/-$/, "");
+      const cityFromSlug = citySlug
+        .split("-")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join("-")
+        .substring(0, 50);
+
+      // Zipcode from title or href
+      const zipFromTitle = titleRaw.match(/\(?(33\d{3})\)?/)?.[1];
+      const zipcode = zipFromTitle ?? zipFromHref ?? "33000";
+
+      // Clean city from title: strip description after "-" and zipcode
+      const cityFromTitle = titleRaw.replace(/\s*\(33\d{3}\)/, "").split(/\s*-\s*/)[0].trim();
+      const city = (cityFromTitle || cityFromSlug || "Bordeaux").substring(0, 80);
+      const title = titleRaw || `${propertyType === "MAISON" ? "Maison" : "Appartement"} à ${city}`;
 
       // Tags: <ul class="item-tags"><li>2 pièces</li><li>48 m²</li>...</ul>
       const tags = $el.find("ul.item-tags li").map((_: number, li: CheerioEl) => $(li).text().trim()).get();
@@ -105,19 +131,6 @@ export class PapScraper extends BaseScraper {
       const roomsText = text.match(/(\d+)\s*pièce/)?.[1];
       const rooms = roomsText ? parseInt(roomsText, 10) : undefined;
 
-      // Type from href pattern: /annonces/appartement-... or /annonces/maison-...
-      const typeMatch = href.match(/\/annonces\/([a-z-]+)-/);
-      const typeKey = typeMatch?.[1]?.toLowerCase() ?? "";
-      let propertyType: PropertyType = "APPARTEMENT";
-      for (const [key, val] of Object.entries(PROPERTY_TYPE_MAP)) {
-        if (typeKey.includes(key)) { propertyType = val; break; }
-      }
-
-      // Zipcode: from city text or href slug (e.g. /annonces/maison-bordeaux-33000-r...)
-      const zipFromCity = cityZipMatch?.[2];
-      const zipFromHref = href.match(/-(33\d{3})-/)?.[1];
-      const zipcode = zipFromCity ?? zipFromHref ?? "33000";
-
       // Photos: look in parent container
       const photos: string[] = [];
       $el.closest("[class]").find("img").each((_: number, img: CheerioEl) => {
@@ -125,7 +138,7 @@ export class PapScraper extends BaseScraper {
         if (src && !src.includes("placeholder") && src.startsWith("http")) photos.push(src);
       });
 
-      return { source: "pap", sourceUrl, title: `${propertyType === "MAISON" ? "Maison" : "Appartement"} à ${city}`, price, surface, rooms, propertyType, city, zipcode, photos };
+      return { source: "pap", sourceUrl, title, price, surface, rooms, propertyType, city, zipcode, photos };
     } catch {
       return null;
     }
