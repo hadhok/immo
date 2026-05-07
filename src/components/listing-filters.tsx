@@ -18,8 +18,19 @@ const PROPERTY_TYPES = [
 
 const SOURCES = [
   { value: "pap", label: "PAP" },
+  { value: "bienici", label: "Bien'ici" },
   { value: "seloger", label: "SeLoger" },
   { value: "leboncoin", label: "LeBonCoin" },
+];
+
+const CONSTRUCTION_OPTIONS = [
+  { value: "ancien", label: "Ancien" },
+  { value: "neuf", label: "Neuf" },
+];
+
+const STATUT_OPTIONS = [
+  { value: "libre", label: "Libre" },
+  { value: "loue", label: "Vendu loué" },
 ];
 
 const SINCE_OPTIONS = [
@@ -30,6 +41,8 @@ const SINCE_OPTIONS = [
 
 const SORT_OPTIONS = [
   { value: "scrapedAt:desc", label: "Plus récentes" },
+  { value: "cashflow:desc", label: "Cash flow (meilleur)" },
+  { value: "cashflow:asc", label: "Cash flow (pire)" },
   { value: "price:asc", label: "Prix croissant" },
   { value: "price:desc", label: "Prix décroissant" },
   { value: "surface:desc", label: "Surface décroissante" },
@@ -68,7 +81,7 @@ export function ListingFilters() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-3">
         <div className="space-y-1">
           <Label className="text-xs">Ville / CP</Label>
           <Input
@@ -126,6 +139,36 @@ export function ListingFilters() {
               <SelectItem value="">Toutes sources</SelectItem>
               {SOURCES.map((s) => (
                 <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Construction</Label>
+          <Select value={sp.get("construction") || ""} onValueChange={(v) => update("construction", v || null)}>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue placeholder="Tous" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Ancien + Neuf</SelectItem>
+              {CONSTRUCTION_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Occupation</Label>
+          <Select value={sp.get("statut") || ""} onValueChange={(v) => update("statut", v || null)}>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue placeholder="Tous" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Tous</SelectItem>
+              {STATUT_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>

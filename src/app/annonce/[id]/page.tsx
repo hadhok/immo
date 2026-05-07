@@ -199,7 +199,10 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
             <Calculator
               prixAffiche={listing.price}
               surface={listing.surface ?? undefined}
-              loyerEstime={loyerEstime}
+              zipcode={listing.zipcode}
+              propertyType={listing.propertyType}
+              chargesMensuelles={listing.chargesMensuelles}
+              taxeFonciere={listing.taxeFonciere}
             />
           </div>
         </div>

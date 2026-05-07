@@ -4,15 +4,15 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { MapPin, Home, Layers, Calendar } from "lucide-react";
 import type { Listing } from "@/generated/prisma/client";
+import { estimateCashFlow, estimatePricePerSqm } from "@/lib/estimates";
 
 interface Props {
   listing: Listing;
-  rentPerSqm?: number;
 }
 
-function rentabiliteColor(pct: number) {
-  if (pct >= 7) return "text-green-600 bg-green-50";
-  if (pct >= 5) return "text-orange-500 bg-orange-50";
+function cashFlowColor(cf: number) {
+  if (cf > 0) return "text-green-600 bg-green-50";
+  if (cf > -200) return "text-orange-500 bg-orange-50";
   return "text-red-500 bg-red-50";
 }
 
@@ -20,14 +20,9 @@ function formatPrice(n: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 }
 
-function estimatedRentability(listing: Listing, rentPerSqm?: number): number | null {
-  if (!listing.surface || !rentPerSqm) return null;
-  const loyerAnnuel = listing.surface * rentPerSqm * 12;
-  return (loyerAnnuel / listing.price) * 100;
-}
-
 const SOURCE_LABELS: Record<string, string> = {
   pap: "PAP",
+  bienici: "Bien'ici",
   seloger: "SeLoger",
   leboncoin: "LeBonCoin",
 };
@@ -41,8 +36,9 @@ const TYPE_LABELS: Record<string, string> = {
   AUTRE: "Autre",
 };
 
-export function ListingCard({ listing, rentPerSqm }: Props) {
-  const rentability = estimatedRentability(listing, rentPerSqm);
+export function ListingCard({ listing }: Props) {
+  const cashFlow = estimateCashFlow(listing);
+  const pricePerSqm = estimatePricePerSqm(listing);
   const photo = listing.photos[0];
   const daysAgo = Math.floor((Date.now() - listing.scrapedAt.getTime()) / 86400000);
 
@@ -75,14 +71,19 @@ export function ListingCard({ listing, rentPerSqm }: Props) {
         <div className="p-3 space-y-2">
           <div className="flex items-start justify-between gap-2">
             <h3 className="font-semibold text-sm leading-tight line-clamp-2 flex-1">{listing.title}</h3>
-            {rentability !== null && (
-              <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded shrink-0", rentabiliteColor(rentability))}>
-                {rentability.toFixed(1)}%
+            {cashFlow !== null && (
+              <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap", cashFlowColor(cashFlow))}>
+                {cashFlow >= 0 ? "+" : ""}{cashFlow.toLocaleString("fr-FR")} €/m
               </span>
             )}
           </div>
 
-          <p className="text-lg font-bold">{formatPrice(listing.price)}</p>
+          <div className="flex items-baseline gap-2">
+            <p className="text-lg font-bold">{formatPrice(listing.price)}</p>
+            {pricePerSqm && (
+              <span className="text-xs text-muted-foreground">{pricePerSqm.toLocaleString("fr-FR")} €/m²</span>
+            )}
+          </div>
 
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             {listing.surface && (

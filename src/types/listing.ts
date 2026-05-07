@@ -30,6 +30,8 @@ export interface ListingData {
   ges?: string;
   chargesMensuelles?: number;
   taxeFonciere?: number;
+  bienNeuf?: boolean;
+  venduLoue?: boolean;
   publicationDate?: Date;
 }
 

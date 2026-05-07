@@ -2,21 +2,18 @@
 
 import { useEffect, useRef } from "react";
 import type { Listing } from "@/generated/prisma/client";
+import { estimateCashFlow, estimatePricePerSqm } from "@/lib/estimates";
 
 interface Props {
   listings: Listing[];
-  rentPerSqmMap?: Record<string, number>;
 }
 
-// Couleur du pin selon rentabilité
-function pinColor(rentability: number | null): string {
-  if (rentability === null) return "#6b7280";
-  if (rentability >= 7) return "#16a34a";
-  if (rentability >= 5) return "#f97316";
-  return "#dc2626";
+function formatPriceShort(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".0", "")}M €`;
+  return `${Math.round(n / 1000)}k €`;
 }
 
-function formatPrice(n: number) {
+function formatPriceFull(n: number) {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
     currency: "EUR",
@@ -24,27 +21,34 @@ function formatPrice(n: number) {
   }).format(n);
 }
 
-export function ListingMap({ listings, rentPerSqmMap = {} }: Props) {
+function cfColor(cf: number | null): string {
+  if (cf === null) return "#6b7280";
+  if (cf > 0) return "#16a34a";
+  if (cf > -300) return "#f97316";
+  return "#dc2626";
+}
+
+const DPE_BG: Record<string, string> = {
+  A: "#00b050", B: "#92d050", C: "#cccc00",
+  D: "#ffc000", E: "#ff9900", F: "#ff0000", G: "#7030a0",
+};
+
+export function ListingMap({ listings }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<unknown>(null);
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    // Import dynamique Leaflet (SSR incompatible)
-    import("leaflet").then((L) => {
+    (async () => {
+      const L = await import("leaflet");
+
       if (!mapRef.current || mapInstanceRef.current) return;
 
-      // Fix icônes Leaflet avec webpack
       // @ts-expect-error leaflet icon workaround
       delete L.Icon.Default.prototype._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-        shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-      });
 
-      const map = L.map(mapRef.current!).setView([44.837789, -0.57918], 10);
+      const map = L.map(mapRef.current!, { zoomControl: true }).setView([44.837789, -0.57918], 10);
       mapInstanceRef.current = map;
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -52,35 +56,88 @@ export function ListingMap({ listings, rentPerSqmMap = {} }: Props) {
         maxZoom: 19,
       }).addTo(map);
 
+      // Charger markercluster APRÈS leaflet (il a besoin de L dans le scope)
+      let markerLayer: L.LayerGroup;
+      try {
+        await import("leaflet.markercluster");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const hasCluster = typeof (L as any).markerClusterGroup === "function";
+        if (hasCluster) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          markerLayer = (L as any).markerClusterGroup({
+            maxClusterRadius: 60,
+            showCoverageOnHover: false,
+            iconCreateFunction: (cluster: { getChildCount: () => number }) => {
+              const n = cluster.getChildCount();
+              return L.divIcon({
+                className: "",
+                html: `<div style="background:#1d4ed8;color:#fff;padding:5px 12px;border-radius:16px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff">${n} biens</div>`,
+                iconSize: [80, 30],
+                iconAnchor: [40, 30],
+              });
+            },
+          });
+        } else {
+          markerLayer = L.layerGroup();
+        }
+      } catch {
+        markerLayer = L.layerGroup();
+      }
+
+      const now = Date.now();
+
       listings.forEach((listing) => {
         if (!listing.lat || !listing.lng) return;
 
-        const rentability = listing.surface && rentPerSqmMap[listing.zipcode]
-          ? (listing.surface * rentPerSqmMap[listing.zipcode] * 12 / listing.price) * 100
-          : null;
+        const cf = estimateCashFlow(listing);
+        const priceSqm = estimatePricePerSqm(listing);
+        const color = cfColor(cf);
+        const label = formatPriceShort(listing.price);
+        const scrapedMs = new Date(listing.scrapedAt as unknown as string).getTime();
+        const isNew = now - scrapedMs < 86_400_000;
 
-        const color = pinColor(rentability);
+        const pillH = isNew ? 46 : 28;
+        const markerHtml = `
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+            ${isNew ? `<div style="background:#1d4ed8;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;letter-spacing:.5px">NOUVEAU</div>` : ""}
+            <div style="background:${color};color:#fff;padding:4px 9px;border-radius:14px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff">${label}</div>
+          </div>`;
 
         const icon = L.divIcon({
           className: "",
-          html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.4)"></div>`,
-          iconSize: [12, 12],
-          iconAnchor: [6, 6],
+          html: markerHtml,
+          iconSize: [72, pillH],
+          iconAnchor: [36, pillH],
         });
 
-        const rentLabel = rentability !== null ? `<br/><b>${rentability.toFixed(1)}% brut</b>` : "";
+        const dpeHtml = listing.dpe
+          ? `<span style="background:${DPE_BG[listing.dpe] ?? "#999"};color:${["A","B","C"].includes(listing.dpe) ? "#000" : "#fff"};padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700">DPE ${listing.dpe}</span>`
+          : "";
 
-        L.marker([listing.lat, listing.lng], { icon })
-          .addTo(map)
-          .bindPopup(
-            `<div style="font-family:sans-serif;font-size:13px;min-width:180px">
-              <b>${listing.title}</b><br/>
-              ${formatPrice(listing.price)}${listing.surface ? ` · ${listing.surface} m²` : ""}${rentLabel}<br/>
-              <a href="/annonce/${listing.id}" style="color:#2563eb">Voir l'annonce →</a>
-            </div>`
-          );
+        const cfHtml =
+          cf !== null
+            ? `<div style="color:${color};font-weight:700;font-size:13px;margin-top:4px">${cf >= 0 ? "+" : ""}${cf.toLocaleString("fr-FR")} €/mois <span style="font-size:11px;font-weight:400;color:#6b7280">(estimé)</span></div>`
+            : "";
+
+        const marker = L.marker([listing.lat, listing.lng], { icon });
+        marker.bindPopup(
+          `<div style="font-family:system-ui,sans-serif;min-width:220px;max-width:260px;line-height:1.5">
+            <div style="font-weight:700;font-size:13px;margin-bottom:6px;line-height:1.3">${listing.title}</div>
+            <div style="font-size:17px;font-weight:800">${formatPriceFull(listing.price)}</div>
+            ${priceSqm ? `<div style="font-size:12px;color:#6b7280">${priceSqm.toLocaleString("fr-FR")} €/m²</div>` : ""}
+            ${listing.surface ? `<div style="font-size:12px;color:#6b7280;margin-top:2px">${listing.surface} m²${listing.rooms ? ` · ${listing.rooms} pièces` : ""}</div>` : ""}
+            <div style="margin-top:6px">${dpeHtml}</div>
+            ${cfHtml}
+            <a href="/annonce/${listing.id}" style="display:inline-block;margin-top:10px;background:#2563eb;color:#fff;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;text-decoration:none">Voir l'annonce →</a>
+          </div>`,
+          { maxWidth: 280, minWidth: 220 }
+        );
+
+        markerLayer.addLayer(marker);
       });
-    });
+
+      map.addLayer(markerLayer);
+    })();
 
     return () => {
       if (mapInstanceRef.current) {
@@ -94,7 +151,9 @@ export function ListingMap({ listings, rentPerSqmMap = {} }: Props) {
     <>
       {/* eslint-disable-next-line @next/next/no-css-tags */}
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <div ref={mapRef} className="w-full h-full rounded-lg" />
+      {/* eslint-disable-next-line @next/next/no-css-tags */}
+      <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+      <div ref={mapRef} className="w-full h-full" />
     </>
   );
 }

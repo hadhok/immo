@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr" className={`${geist.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <Navbar />
-        <main className="flex-1">{children}</main>
+        <main className="flex-1 overflow-hidden">{children}</main>
       </body>
     </html>
   );

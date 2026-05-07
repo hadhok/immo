@@ -138,7 +138,14 @@ export class PapScraper extends BaseScraper {
         if (src && !src.includes("placeholder") && src.startsWith("http")) photos.push(src);
       });
 
-      return { source: "pap", sourceUrl, title, price, surface, rooms, propertyType, city, zipcode, photos };
+      const titleLower = title.toLowerCase();
+      const bienNeuf = titleLower.includes("neuf") || titleLower.includes("vefa") || titleLower.includes("programme neuf");
+      const venduLoue =
+        titleLower.includes("vendu loué") || titleLower.includes("vendu loue") ||
+        titleLower.includes("vendu occupé") || titleLower.includes("bail en cours") ||
+        titleLower.includes("locataire en place");
+
+      return { source: "pap", sourceUrl, title, price, surface, rooms, propertyType, city, zipcode, photos, bienNeuf, venduLoue };
     } catch {
       return null;
     }

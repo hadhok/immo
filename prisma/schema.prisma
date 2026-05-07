@@ -46,6 +46,8 @@ model Listing {
   ges             String?
   chargesMensuelles Int?
   taxeFonciere    Int?
+  bienNeuf        Boolean  @default(false)
+  venduLoue       Boolean  @default(false)
   publicationDate DateTime?
   scrapedAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt

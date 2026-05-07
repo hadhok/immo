@@ -121,7 +121,18 @@ export class BieniciScraper extends BaseScraper {
       const blurInfo = ad.blurInfo as Record<string, unknown> | undefined;
       const position = blurInfo?.position as Record<string, number> | undefined;
       const lat = position?.lat || undefined;
-      const lng = position?.lng || undefined;
+      const lngRaw = position?.lon !== undefined ? position.lon : position?.lng;
+      const lng = lngRaw || undefined;
+
+      const bienNeuf = Boolean(ad.newProperty);
+      const descLower = (description + " " + title).toLowerCase();
+      const venduLoue =
+        descLower.includes("vendu loué") ||
+        descLower.includes("vendu loue") ||
+        descLower.includes("vendu occupé") ||
+        descLower.includes("vendu occupe") ||
+        descLower.includes("bail en cours") ||
+        descLower.includes("locataire en place");
 
       return {
         source: "bienici",
@@ -138,6 +149,8 @@ export class BieniciScraper extends BaseScraper {
         description,
         photos,
         dpe: dpe !== "NS" ? dpe : undefined,
+        bienNeuf,
+        venduLoue,
         publicationDate: ad.publicationDate ? new Date(ad.publicationDate as string) : undefined,
       };
     } catch {
