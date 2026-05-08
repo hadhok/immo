@@ -101,6 +101,11 @@ export class BieniciScraper extends BaseScraper {
       const typeKey = String(ad.propertyType ?? "").toLowerCase();
       const propertyType: PropertyType = PROPERTY_TYPE_MAP[typeKey] ?? "APPARTEMENT";
 
+      // Exclude viager listings
+      const titleCheck = String(ad.title ?? "").toLowerCase();
+      const descCheck = String(ad.description ?? "").toLowerCase();
+      if (titleCheck.includes("viager") || descCheck.includes("viager")) return null;
+
       const adId = String(ad.id ?? "");
       const sourceUrl = `${BASE_URL}/annonce/achat/${adId}`;
 
@@ -125,6 +130,11 @@ export class BieniciScraper extends BaseScraper {
       const lat = position?.lat || undefined;
       const lngRaw = position?.lon !== undefined ? position.lon : position?.lng;
       const lng = lngRaw || undefined;
+
+      // Exclude suspiciously low price/m² (data errors), except terrains
+      if (surface && surface > 15 && propertyType !== "TERRAIN") {
+        if (price / surface < 500) return null;
+      }
 
       const bienNeuf = Boolean(ad.newProperty);
       const descLower = (description + " " + title).toLowerCase();

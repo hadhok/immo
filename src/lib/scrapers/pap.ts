@@ -139,6 +139,9 @@ export class PapScraper extends BaseScraper {
       });
 
       const titleLower = title.toLowerCase();
+      if (titleLower.includes("viager")) return null;
+      if (surface && surface > 15 && propertyType !== "TERRAIN" && price / surface < 500) return null;
+
       const bienNeuf = titleLower.includes("neuf") || titleLower.includes("vefa") || titleLower.includes("programme neuf");
       const venduLoue =
         titleLower.includes("vendu loué") || titleLower.includes("vendu loue") ||

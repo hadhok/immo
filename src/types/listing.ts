@@ -44,12 +44,11 @@ export interface ScraperResult {
   errorMsg?: string;
 }
 
-export const SOURCES = ["pap", "seloger", "leboncoin", "bienici"] as const;
+export const SOURCES = ["pap", "bienici", "castorus"] as const;
 export type Source = (typeof SOURCES)[number];
 
 export const SOURCE_LABELS: Record<Source, string> = {
   pap: "PAP",
-  seloger: "SeLoger",
-  leboncoin: "LeBonCoin",
   bienici: "Bien'ici",
+  castorus: "Castorus",
 };

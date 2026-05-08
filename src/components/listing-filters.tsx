@@ -2,257 +2,323 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SlidersHorizontal, X, Search, ChevronDown } from "lucide-react";
+import { Search, X, TrendingUp, Settings2, Zap, Clock, Lock, DoorOpen, Sparkles } from "lucide-react";
+import { useInvestParams } from "@/components/invest-context";
 
 const PROPERTY_TYPES = [
   { value: "APPARTEMENT", label: "Appartement" },
-  { value: "MAISON", label: "Maison" },
-  { value: "IMMEUBLE", label: "Immeuble" },
-  { value: "TERRAIN", label: "Terrain" },
+  { value: "MAISON",      label: "Maison" },
+  { value: "IMMEUBLE",    label: "Immeuble" },
   { value: "LOCAL_COMMERCIAL", label: "Local commercial" },
 ];
-
-const BUDGET_MAX_OPTIONS = [
-  { value: "100000", label: "100 000 €" },
-  { value: "150000", label: "150 000 €" },
-  { value: "200000", label: "200 000 €" },
-  { value: "250000", label: "250 000 €" },
-  { value: "300000", label: "300 000 €" },
-  { value: "400000", label: "400 000 €" },
-  { value: "500000", label: "500 000 €" },
-  { value: "750000", label: "750 000 €" },
-  { value: "1000000", label: "1 000 000 €" },
+const SURFACE_OPTIONS = [20, 30, 40, 50, 60, 80, 100, 150, 200];
+const ROOMS_OPTIONS   = [1, 2, 3, 4, 5, 6];
+const PRICE_OPTIONS   = [
+  { v: "50000",   l: "50 k€" },  { v: "75000",   l: "75 k€" },
+  { v: "100000",  l: "100 k€" }, { v: "150000",  l: "150 k€" },
+  { v: "200000",  l: "200 k€" }, { v: "250000",  l: "250 k€" },
+  { v: "300000",  l: "300 k€" }, { v: "400000",  l: "400 k€" },
+  { v: "500000",  l: "500 k€" }, { v: "750000",  l: "750 k€" },
+  { v: "1000000", l: "1 M€" },   { v: "1500000", l: "1,5 M€" },
 ];
-
-const SURFACE_MIN_OPTIONS = [
-  { value: "20", label: "20 m²" },
-  { value: "30", label: "30 m²" },
-  { value: "40", label: "40 m²" },
-  { value: "50", label: "50 m²" },
-  { value: "60", label: "60 m²" },
-  { value: "80", label: "80 m²" },
-  { value: "100", label: "100 m²" },
-  { value: "150", label: "150 m²" },
-];
-
 const SOURCES = [
-  { value: "pap", label: "PAP" },
-  { value: "bienici", label: "Bien'ici" },
-  { value: "seloger", label: "SeLoger" },
-  { value: "leboncoin", label: "LeBonCoin" },
+  { v: "",         l: "Toutes sources" },
+  { v: "pap",      l: "PAP" },
+  { v: "bienici",  l: "Bien'ici" },
+  { v: "castorus", l: "Castorus" },
 ];
+const STORAGE_KEY = "immo33_invest_params";
 
-const CONSTRUCTION_OPTIONS = [
-  { value: "ancien", label: "Ancien" },
-  { value: "neuf", label: "Neuf" },
-];
+function loadInvestLocal() {
+  if (typeof window === "undefined") return { apport: "20", taux: "3.5", duree: "20" };
+  try {
+    const s = localStorage.getItem(STORAGE_KEY);
+    if (s) return JSON.parse(s) as { apport: string; taux: string; duree: string };
+  } catch { /* noop */ }
+  return { apport: "20", taux: "3.5", duree: "20" };
+}
 
-const STATUT_OPTIONS = [
-  { value: "libre", label: "Libre" },
-  { value: "loue", label: "Vendu loué" },
-];
-
-const SINCE_OPTIONS = [
-  { value: "24", label: "24h" },
-  { value: "48", label: "48h" },
-  { value: "168", label: "7 jours" },
-];
-
-const SORT_OPTIONS = [
-  { value: "scrapedAt:desc", label: "Plus récentes" },
-  { value: "cashflow:desc", label: "Meilleur cash flow" },
-  { value: "cashflow:asc", label: "Pire cash flow" },
-  { value: "price:asc", label: "Prix croissant" },
-  { value: "price:desc", label: "Prix décroissant" },
-  { value: "surface:desc", label: "Surface décroissante" },
-];
-
-const SECONDARY_KEYS = ["source", "construction", "statut", "sinceHours"];
-
-const pillClass = "h-9 rounded-full border border-border bg-white hover:border-primary/40 hover:bg-accent/30 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 px-4 whitespace-nowrap data-placeholder:text-muted-foreground [&_svg:last-child]:text-muted-foreground";
+const sel = "h-8 border border-slate-200 bg-white rounded-lg text-sm font-medium outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 cursor-pointer px-2 text-slate-700 transition-colors hover:border-slate-300";
 
 export function ListingFilters() {
   const router = useRouter();
-  const sp = useSearchParams();
-  const [showSecondary, setShowSecondary] = useState(false);
+  const sp     = useSearchParams();
+  const { setParams: setInvestParams } = useInvestParams();
 
-  const update = useCallback(
-    (key: string, value: string | null) => {
-      const params = new URLSearchParams(sp.toString());
-      if (value) params.set(key, value);
-      else params.delete(key);
-      params.set("page", "1");
-      router.push(`/?${params.toString()}`);
-    },
-    [router, sp]
+  const [location,    setLocation]    = useState(sp.get("city") || sp.get("zipcode") || "");
+  const [source,      setSource]      = useState(sp.get("source") || "");
+  const [propertyType,setPropertyType]= useState(sp.get("propertyType") || "");
+  const [surfaceMin,  setSurfaceMin]  = useState(sp.get("surfaceMin") || "");
+  const [surfaceMax,  setSurfaceMax]  = useState(sp.get("surfaceMax") || "");
+  const [roomsMin,    setRoomsMin]    = useState(sp.get("rooms") || "");
+  const [priceMin,    setPriceMin]    = useState(sp.get("priceMin") || "");
+  const [priceMax,    setPriceMax]    = useState(sp.get("priceMax") || "");
+
+  const [bonRendement, setBonRendement] = useState(sp.has("yieldMin"));
+  const [nouveautes,   setNouveautes]   = useState(sp.has("sinceHours"));
+  const [neuf,         setNeuf]         = useState(sp.get("construction") === "neuf");
+  const [loue,         setLoue]         = useState(sp.get("statut") === "loue");
+  const [libre,        setLibre]        = useState(sp.get("statut") === "libre");
+
+  const [showInvest,  setShowInvest]  = useState(false);
+  const [investLocal, setInvestLocal] = useState(() => loadInvestLocal());
+
+  // Core search function — accepts overrides for instant-apply toggles
+  const searchWith = useCallback((overrides: Partial<{
+    bonRendement: boolean; nouveautes: boolean; neuf: boolean; loue: boolean; libre: boolean;
+  }> = {}) => {
+    const params = new URLSearchParams();
+    if (sp.get("sortBy"))    params.set("sortBy",    sp.get("sortBy")!);
+    if (sp.get("sortOrder")) params.set("sortOrder", sp.get("sortOrder")!);
+
+    const loc = location.trim();
+    if (loc) {
+      if (/^\d{4,5}$/.test(loc)) params.set("zipcode", loc);
+      else params.set("city", loc);
+    }
+    if (source)       params.set("source",       source);
+    if (propertyType) params.set("propertyType", propertyType);
+    if (surfaceMin)   params.set("surfaceMin",   surfaceMin);
+    if (surfaceMax)   params.set("surfaceMax",   surfaceMax);
+    if (roomsMin)     params.set("rooms",        roomsMin);
+    if (priceMin)     params.set("priceMin",     priceMin);
+    if (priceMax)     params.set("priceMax",     priceMax);
+
+    const eff = {
+      bonRendement: "bonRendement" in overrides ? overrides.bonRendement! : bonRendement,
+      nouveautes:   "nouveautes"   in overrides ? overrides.nouveautes!   : nouveautes,
+      neuf:         "neuf"         in overrides ? overrides.neuf!         : neuf,
+      loue:         "loue"         in overrides ? overrides.loue!         : loue,
+      libre:        "libre"        in overrides ? overrides.libre!        : libre,
+    };
+
+    if (eff.bonRendement) params.set("yieldMin",     "5.5");
+    if (eff.nouveautes)   params.set("sinceHours",   "48");
+    if (eff.neuf)         params.set("construction", "neuf");
+    if (eff.loue)         params.set("statut",       "loue");
+    else if (eff.libre)   params.set("statut",       "libre");
+
+    params.set("page", "1");
+    router.push(`/?${params.toString()}`);
+  }, [location, source, propertyType, surfaceMin, surfaceMax, roomsMin, priceMin, priceMax,
+      bonRendement, nouveautes, neuf, loue, libre, sp, router]);
+
+  const search = useCallback(() => searchWith(), [searchWith]);
+
+  const reset = () => {
+    setLocation(""); setSource(""); setPropertyType("");
+    setSurfaceMin(""); setSurfaceMax(""); setRoomsMin("");
+    setPriceMin(""); setPriceMax("");
+    setLoue(false); setLibre(false); setNeuf(false);
+    setBonRendement(false); setNouveautes(false);
+    router.push("/");
+  };
+
+  const applyInvest = () => {
+    const parsed = {
+      apport: parseFloat(investLocal.apport) || 20,
+      taux:   parseFloat(investLocal.taux)   || 3.5,
+      duree:  parseInt(investLocal.duree, 10) || 20,
+    };
+    setInvestParams(parsed);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(investLocal));
+    setShowInvest(false);
+  };
+
+  const hasFilters = !!(location || source || propertyType || surfaceMin || surfaceMax ||
+    roomsMin || priceMin || priceMax || loue || libre || neuf || bonRendement || nouveautes);
+
+  // ── Quick filter pill ──────────────────────────────────────────────────
+  const Pill = ({
+    icon: Icon, label, active, onClick,
+  }: { icon?: React.ElementType; label: string; active: boolean; onClick: () => void }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all select-none
+        ${active
+          ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+          : "bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50"
+        }`}
+    >
+      {Icon && <Icon className="size-3" />}
+      {label}
+    </button>
   );
 
-  const reset = () => router.push("/");
-  const hasFilters = Array.from(sp.keys()).some((k) => k !== "page" && k !== "sortBy" && k !== "sortOrder");
-  const activeSecondary = SECONDARY_KEYS.filter((k) => sp.has(k)).length;
-  const sortValue = `${sp.get("sortBy") || "scrapedAt"}:${sp.get("sortOrder") || "desc"}`;
-  const sortLabel = SORT_OPTIONS.find((o) => o.value === sortValue)?.label ?? "Plus récentes";
-
   return (
-    <div className="space-y-2">
-      {/* Primary row */}
-      <div className="flex items-center gap-2 flex-wrap">
+    <div className="space-y-2.5">
 
-        {/* Search */}
-        <div className="relative flex-1 min-w-[180px] max-w-[260px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Ville, code postal…"
-            defaultValue={sp.get("city") || ""}
-            className="h-9 w-full rounded-full border border-border bg-white pl-9 pr-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors placeholder:text-muted-foreground"
-            onChange={(e) => update("city", e.target.value || null)}
-          />
+      {/* ── Main filter bar ───────────────────────────────────────────────── */}
+      <div className="flex items-stretch gap-0 border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+
+        {/* OÙ ? */}
+        <div className="px-4 py-2.5 border-r border-slate-200 min-w-[220px] flex flex-col justify-center">
+          <p className="text-[9px] font-black uppercase tracking-widest text-orange-500 mb-1.5">Où ?</p>
+          <div className="flex items-center gap-2">
+            {location ? (
+              <span className="flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 text-xs font-semibold">
+                {location}
+                <button onClick={() => setLocation("")} className="hover:text-red-500 transition-colors ml-0.5">
+                  <X className="size-3" />
+                </button>
+              </span>
+            ) : (
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-slate-350 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Ville ou code postal"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && search()}
+                  className="w-full pl-7 pr-2 text-sm outline-none bg-transparent placeholder:text-slate-350 text-slate-700"
+                />
+              </div>
+            )}
+            <select value={source} onChange={(e) => setSource(e.target.value)} className={sel + " shrink-0"}>
+              {SOURCES.map((s) => <option key={s.v} value={s.v}>{s.l}</option>)}
+            </select>
+          </div>
         </div>
 
-        {/* Type */}
-        <Select value={sp.get("propertyType") || ""} onValueChange={(v) => update("propertyType", v || null)}>
-          <SelectTrigger className={pillClass}>
-            <SelectValue placeholder="Type de bien" />
-          </SelectTrigger>
-          <SelectContent align="start">
-            <SelectItem value="">Tous types</SelectItem>
-            {PROPERTY_TYPES.map((t) => (
-              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* QUOI ? */}
+        <div className="px-4 py-2.5 border-r border-slate-200 flex-1 flex flex-col justify-center">
+          <p className="text-[9px] font-black uppercase tracking-widest text-orange-500 mb-1.5">Quoi ?</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <select value={propertyType} onChange={(e) => setPropertyType(e.target.value)} className={sel}>
+              <option value="">Type de bien</option>
+              {PROPERTY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span>Surface</span>
+              <select value={surfaceMin} onChange={(e) => setSurfaceMin(e.target.value)} className={sel}>
+                <option value="">min</option>
+                {SURFACE_OPTIONS.map((v) => <option key={v} value={String(v)}>{v}</option>)}
+              </select>
+              <select value={surfaceMax} onChange={(e) => setSurfaceMax(e.target.value)} className={sel}>
+                <option value="">max</option>
+                {SURFACE_OPTIONS.map((v) => <option key={v} value={String(v)}>{v}</option>)}
+              </select>
+              <span className="text-slate-400">m²</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span>Pièces</span>
+              <select value={roomsMin} onChange={(e) => setRoomsMin(e.target.value)} className={sel}>
+                <option value="">min</option>
+                {ROOMS_OPTIONS.map((v) => <option key={v} value={String(v)}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
 
-        {/* Budget max */}
-        <Select value={sp.get("priceMax") || ""} onValueChange={(v) => update("priceMax", v || null)}>
-          <SelectTrigger className={pillClass}>
-            <SelectValue placeholder="Budget max" />
-          </SelectTrigger>
-          <SelectContent align="start">
-            <SelectItem value="">Tous budgets</SelectItem>
-            {BUDGET_MAX_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* COMBIEN ? */}
+        <div className="px-4 py-2.5 border-r border-slate-200 flex flex-col justify-center">
+          <p className="text-[9px] font-black uppercase tracking-widest text-orange-500 mb-1.5">Combien ?</p>
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <span>Prix</span>
+            <select value={priceMin} onChange={(e) => setPriceMin(e.target.value)} className={sel}>
+              <option value="">min</option>
+              {PRICE_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+            </select>
+            <select value={priceMax} onChange={(e) => setPriceMax(e.target.value)} className={sel}>
+              <option value="">max</option>
+              {PRICE_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+            </select>
+          </div>
+        </div>
 
-        {/* Surface min */}
-        <Select value={sp.get("surfaceMin") || ""} onValueChange={(v) => update("surfaceMin", v || null)}>
-          <SelectTrigger className={pillClass}>
-            <SelectValue placeholder="Surface min" />
-          </SelectTrigger>
-          <SelectContent align="start">
-            <SelectItem value="">Toutes surfaces</SelectItem>
-            {SURFACE_MIN_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Secondary filters toggle */}
-        <button
-          onClick={() => setShowSecondary((v) => !v)}
-          className={`h-9 rounded-full border text-sm font-medium px-4 flex items-center gap-2 transition-colors ${
-            showSecondary || activeSecondary > 0
-              ? "border-primary bg-accent/40 text-primary"
-              : "border-border bg-white hover:border-primary/40 hover:bg-accent/30 text-muted-foreground"
-          }`}
-        >
-          <SlidersHorizontal className="size-4" />
-          Filtres
-          {activeSecondary > 0 && (
-            <span className="bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">{activeSecondary}</span>
-          )}
-          <ChevronDown className={`size-3.5 transition-transform ${showSecondary ? "rotate-180" : ""}`} />
-        </button>
-
-        {/* Sort — pushed right */}
-        <div className="ml-auto flex items-center gap-2 shrink-0">
+        {/* Actions */}
+        <div className="flex items-stretch">
           {hasFilters && (
             <button
               onClick={reset}
-              className="h-9 rounded-full border border-border bg-white text-sm text-muted-foreground px-3 flex items-center gap-1.5 hover:text-destructive hover:border-destructive/40 transition-colors"
+              title="Réinitialiser tous les filtres"
+              className="px-3 border-r border-slate-200 text-slate-350 hover:text-red-500 hover:bg-red-50 transition-colors"
             >
-              <X className="size-3.5" />
-              Réinitialiser
+              <X className="size-4" />
             </button>
           )}
-          <Select
-            value={sortValue}
-            onValueChange={(v) => {
-              if (!v) return;
-              const [sortBy = "scrapedAt", sortOrder = "desc"] = v.split(":");
-              const params = new URLSearchParams(sp.toString());
-              params.set("sortBy", sortBy);
-              params.set("sortOrder", sortOrder);
-              params.set("page", "1");
-              router.push(`/?${params.toString()}`);
-            }}
+          <button
+            onClick={() => setShowInvest((v) => !v)}
+            title="Paramètres de financement"
+            className={`px-3.5 border-r border-slate-200 flex items-center gap-1.5 text-xs font-semibold transition-colors
+              ${showInvest ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:text-emerald-600 hover:bg-emerald-50/50"}`}
           >
-            <SelectTrigger className={`${pillClass} min-w-[170px]`}>
-              <span className="flex-1 text-left">{sortLabel}</span>
-            </SelectTrigger>
-            <SelectContent align="end">
-              {SORT_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <TrendingUp className="size-3.5" />
+            <span className="hidden sm:inline">Invest.</span>
+          </button>
+          <button
+            onClick={search}
+            className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-6 font-bold text-sm transition-colors flex items-center gap-2"
+          >
+            <Search className="size-3.5" />
+            <span>Rechercher</span>
+          </button>
         </div>
       </div>
 
-      {/* Secondary row */}
-      {showSecondary && (
-        <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border/60">
+      {/* ── Quick filter pills ────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Filtres</span>
+        <div className="w-px h-3 bg-slate-200 shrink-0" />
+        <Pill icon={Zap}      label="Bon rendement ≥5,5%" active={bonRendement}
+          onClick={() => { const n = !bonRendement; setBonRendement(n); searchWith({ bonRendement: n }); }} />
+        <Pill icon={Clock}    label="Nouveautés 48h"       active={nouveautes}
+          onClick={() => { const n = !nouveautes;   setNouveautes(n);   searchWith({ nouveautes: n }); }} />
+        <Pill icon={Lock}     label="Actuellement loué"    active={loue}
+          onClick={() => { const nl=!loue; setLoue(nl); if(nl) setLibre(false); searchWith({ loue: nl, libre: nl ? false : libre }); }} />
+        <Pill icon={DoorOpen} label="Libre"                active={libre}
+          onClick={() => { const nl=!libre; setLibre(nl); if(nl) setLoue(false); searchWith({ libre: nl, loue: nl ? false : loue }); }} />
+        <Pill icon={Sparkles} label="Neuf"                 active={neuf}
+          onClick={() => { const n = !neuf; setNeuf(n); searchWith({ neuf: n }); }} />
+      </div>
 
-          <Select value={sp.get("source") || ""} onValueChange={(v) => update("source", v || null)}>
-            <SelectTrigger className={pillClass}>
-              <SelectValue placeholder="Source" />
-            </SelectTrigger>
-            <SelectContent align="start">
-              <SelectItem value="">Toutes sources</SelectItem>
-              {SOURCES.map((s) => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={sp.get("construction") || ""} onValueChange={(v) => update("construction", v || null)}>
-            <SelectTrigger className={pillClass}>
-              <SelectValue placeholder="Construction" />
-            </SelectTrigger>
-            <SelectContent align="start">
-              <SelectItem value="">Ancien + Neuf</SelectItem>
-              {CONSTRUCTION_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={sp.get("statut") || ""} onValueChange={(v) => update("statut", v || null)}>
-            <SelectTrigger className={pillClass}>
-              <SelectValue placeholder="Occupation" />
-            </SelectTrigger>
-            <SelectContent align="start">
-              <SelectItem value="">Tous</SelectItem>
-              {STATUT_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={sp.get("sinceHours") || ""} onValueChange={(v) => update("sinceHours", v || null)}>
-            <SelectTrigger className={pillClass}>
-              <SelectValue placeholder="Nouveautés" />
-            </SelectTrigger>
-            <SelectContent align="start">
-              <SelectItem value="">Toutes</SelectItem>
-              {SINCE_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* ── Invest params panel ───────────────────────────────────────────── */}
+      {showInvest && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4">
+          <div className="flex items-center gap-5 flex-wrap">
+            <div className="flex items-center gap-2 text-sm font-bold text-emerald-800">
+              <Settings2 className="size-4" />
+              Paramètres crédit
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <span className="font-medium">Apport</span>
+              <select
+                value={investLocal.apport}
+                onChange={(e) => setInvestLocal((p) => ({ ...p, apport: e.target.value }))}
+                className="h-8 rounded-lg border border-emerald-300 bg-white px-2 text-sm font-semibold outline-none focus:border-emerald-500"
+              >
+                {[5,10,15,20,25,30,40,50].map((v) => <option key={v} value={String(v)}>{v}%</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <span className="font-medium">Taux</span>
+              <input
+                type="number" min={0.5} max={10} step={0.05}
+                value={investLocal.taux}
+                onChange={(e) => setInvestLocal((p) => ({ ...p, taux: e.target.value }))}
+                className="h-8 w-16 rounded-lg border border-emerald-300 bg-white px-2 text-sm font-semibold outline-none focus:border-emerald-500 text-center"
+              />
+              <span className="text-slate-400 -ml-1">%</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <span className="font-medium">Durée</span>
+              <select
+                value={investLocal.duree}
+                onChange={(e) => setInvestLocal((p) => ({ ...p, duree: e.target.value }))}
+                className="h-8 rounded-lg border border-emerald-300 bg-white px-2 text-sm font-semibold outline-none focus:border-emerald-500"
+              >
+                {[10,15,20,25,30].map((v) => <option key={v} value={String(v)}>{v} ans</option>)}
+              </select>
+            </div>
+            <button
+              onClick={applyInvest}
+              className="h-8 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-5 transition-colors ml-auto"
+            >
+              Appliquer
+            </button>
+          </div>
         </div>
       )}
     </div>

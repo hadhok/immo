@@ -121,6 +121,10 @@ export class LeBonCoinScraper extends BaseScraper {
       const attrs = (ad.attributes as Array<{ key: string; value: string; value_label?: string }>) ?? [];
       const getAttr = (key: string) => attrs.find((a) => a.key === key);
 
+      const title = String(ad.subject ?? "");
+      const desc = String(ad.body ?? "");
+      if ((title + desc).toLowerCase().includes("viager")) return null;
+
       const surface = parseFloat(getAttr("square")?.value ?? "0") || undefined;
       const rooms = parseInt(getAttr("rooms")?.value ?? "0", 10) || undefined;
       const typeLabel = getAttr("real_estate_type")?.value_label ?? "";
@@ -130,10 +134,12 @@ export class LeBonCoinScraper extends BaseScraper {
       const images = (ad.images as Record<string, unknown>) ?? {};
       const photos = ((images.urls_large ?? images.urls) as string[]) ?? [];
 
+      if (surface && surface > 15 && propertyType !== "TERRAIN" && price / surface < 500) return null;
+
       return {
         source: "leboncoin",
         sourceUrl: String(ad.url ?? `${BASE_URL}/ad/${ad.list_id}`),
-        title: String(ad.subject ?? ""),
+        title,
         price,
         surface,
         rooms,
@@ -142,7 +148,7 @@ export class LeBonCoinScraper extends BaseScraper {
         zipcode,
         lat: (location.lat as number) || undefined,
         lng: (location.lng as number) || undefined,
-        description: String(ad.body ?? ""),
+        description: desc,
         photos: photos.filter(Boolean),
         dpe: dpe || undefined,
         publicationDate: ad.first_publication_date

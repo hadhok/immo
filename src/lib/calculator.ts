@@ -78,8 +78,8 @@ export interface CalculatorResult {
 }
 
 function calcFraisNotaireAncien(prixNetVendeur: number): number {
-  // Droits de mutation : 5.80%
-  const droitsMutation = prixNetVendeur * 0.058;
+  // DMTO Gironde : 5.8066% + CSI 0.10% = 5.9066%
+  const droitsMutation = prixNetVendeur * 0.059066;
 
   // Émoluments notaire (barème dégressif)
   let emoluments = 0;
@@ -95,15 +95,14 @@ function calcFraisNotaireAncien(prixNetVendeur: number): number {
   }
   emoluments = emoluments * 1.2; // TVA 20%
 
-  const contributionSecurite = prixNetVendeur * 0.001;
-  const debours = 1200;
+  const debours = 1350;
 
-  return Math.round(droitsMutation + emoluments + contributionSecurite + debours);
+  return Math.round(droitsMutation + emoluments + debours);
 }
 
 function calcFraisNotaireNeuf(prixNetVendeur: number): number {
-  // TVA incluse dans le prix, droits de mutation réduits
-  const droitsMutation = prixNetVendeur * 0.00715;
+  // Neuf : droits réduits (TVA incluse dans le prix) + CSI 0.10%
+  const droitsMutation = prixNetVendeur * 0.00815; // 0.715% DMTO réduit + 0.10% CSI
   let emoluments = 0;
   if (prixNetVendeur <= 6500) {
     emoluments = prixNetVendeur * 0.03945;
@@ -116,7 +115,7 @@ function calcFraisNotaireNeuf(prixNetVendeur: number): number {
       6500 * 0.03945 + 10500 * 0.01627 + 43000 * 0.01085 + (prixNetVendeur - 60000) * 0.00814;
   }
   emoluments = emoluments * 1.2;
-  const debours = 1200;
+  const debours = 1350;
   return Math.round(droitsMutation + emoluments + debours);
 }
 

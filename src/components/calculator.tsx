@@ -25,16 +25,39 @@ interface Props {
 // ─── Financing defaults (localStorage) ─────────────────────────────────────
 
 const LS_KEY = "immo-fin-defaults";
-const HARD_DEFAULTS = { apportRatio: 0.20, tauxInteret: 3.5, dureeAns: 20, assuranceEmprunteur: 0.10 };
+// Shared key with the listing filter panel
+const SHARED_KEY = "immo33_invest_params";
+const HARD_DEFAULTS = { apportRatio: 0.20, tauxInteret: 3.5, dureeAns: 20, assuranceEmprunteur: 0.11 };
 
 function loadFinDefaults() {
   if (typeof window === "undefined") return HARD_DEFAULTS;
-  try { return { ...HARD_DEFAULTS, ...JSON.parse(localStorage.getItem(LS_KEY) ?? "{}") }; }
-  catch { return HARD_DEFAULTS; }
+  try {
+    // Prioritize shared invest params from the listing filter panel
+    const shared = localStorage.getItem(SHARED_KEY);
+    if (shared) {
+      const { apport, taux, duree } = JSON.parse(shared) as { apport: string; taux: string; duree: string };
+      const base = { ...HARD_DEFAULTS, ...JSON.parse(localStorage.getItem(LS_KEY) ?? "{}") };
+      return {
+        ...base,
+        apportRatio: parseFloat(apport) / 100,
+        tauxInteret: parseFloat(taux),
+        dureeAns: parseInt(duree, 10),
+      };
+    }
+    return { ...HARD_DEFAULTS, ...JSON.parse(localStorage.getItem(LS_KEY) ?? "{}") };
+  } catch { return HARD_DEFAULTS; }
 }
 
 function saveFinDefaults(d: typeof HARD_DEFAULTS) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(d)); } catch { /* noop */ }
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(d));
+    // Also sync back to the shared key
+    localStorage.setItem(SHARED_KEY, JSON.stringify({
+      apport: String(Math.round(d.apportRatio * 100)),
+      taux: String(d.tauxInteret),
+      duree: String(d.dureeAns),
+    }));
+  } catch { /* noop */ }
 }
 
 // ─── Source badge ────────────────────────────────────────────────────────────
@@ -107,9 +130,9 @@ export function Calculator({ prixAffiche, surface, zipcode = "33000", propertyTy
     () => estimateRent({ price: prixAffiche, surface, zipcode, propertyType }) ?? (surface ? Math.round(surface * 12) : 800),
     [prixAffiche, surface, zipcode, propertyType]
   );
-  const estimatedTaxe = surface ? Math.round(surface * 6) : 0;
-  const estimatedCopro = propertyType === "APPARTEMENT" ? Math.min(2400, (surface ?? 50) * 28) : 0;
-  const estimatedEntretien = Math.max(400, Math.round(prixAffiche * 0.002));
+  const estimatedTaxe = surface ? Math.round(surface * 8) : 0;
+  const estimatedCopro = propertyType === "APPARTEMENT" ? Math.min(2800, Math.round((surface ?? 50) * 30)) : 0;
+  const estimatedEntretien = Math.max(500, Math.round(prixAffiche * 0.0015));
 
   const finDef = useMemo(loadFinDefaults, []);
 

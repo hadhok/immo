@@ -10,8 +10,7 @@ import type { Source, ScraperResult } from "@/types/listing";
 const SOURCES: { id: Source; label: string; reliable?: boolean }[] = [
   { id: "pap", label: "PAP", reliable: true },
   { id: "bienici", label: "Bien'ici", reliable: true },
-  { id: "seloger", label: "SeLoger" },
-  { id: "leboncoin", label: "LeBonCoin" },
+  { id: "castorus", label: "Castorus", reliable: true },
 ];
 
 interface RunResult extends ScraperResult {

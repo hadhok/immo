@@ -9,8 +9,7 @@ import type { ScraperStatus } from "@/types/listing";
 const SOURCES = [
   { id: "pap", label: "PAP.fr", description: "Particulier à particulier" },
   { id: "bienici", label: "Bien'ici", description: "Agrégateur agences (API)" },
-  { id: "seloger", label: "SeLoger", description: "Portail agences (anti-bot)" },
-  { id: "leboncoin", label: "LeBonCoin", description: "Petites annonces (anti-bot)" },
+  { id: "castorus", label: "Castorus", description: "Historique prix Bordeaux" },
 ];
 
 function StatusBadge({ status }: { status: ScraperStatus }) {

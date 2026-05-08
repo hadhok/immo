@@ -1,4 +1,4 @@
-import { PapScraper, SeLogerScraper, LeBonCoinScraper, BieniciScraper } from "@/lib/scrapers";
+import { PapScraper, BieniciScraper, CastorusScraper } from "@/lib/scrapers";
 import type { BaseScraper } from "@/lib/scrapers";
 import type { Source } from "@/types/listing";
 
@@ -7,9 +7,8 @@ export const maxDuration = 300; // 5 min max (Vercel Pro) â€” ajuster selon l'hÃ
 
 const SCRAPERS: Record<string, () => BaseScraper> = {
   pap: () => new PapScraper(),
-  seloger: () => new SeLogerScraper(),
-  leboncoin: () => new LeBonCoinScraper(),
   bienici: () => new BieniciScraper(),
+  castorus: () => new CastorusScraper(),
 };
 
 export async function POST(request: Request) {

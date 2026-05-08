@@ -111,6 +111,9 @@ function parseClassified(item: Obj): ListingData | null {
     const tagsStr = tags.map(t => String(t).toLowerCase()).join(" ");
     const titleLow = title.toLowerCase();
     const descLow = str(item.description).toLowerCase();
+    if ((title + str(item.description)).toLowerCase().includes("viager")) return null;
+    if (surface && surface > 15 && propertyType !== "TERRAIN" && price / surface < 500) return null;
+
     const bienNeuf = Boolean(
       item.isNewProperty ??
       item.newConstruction ??
