@@ -156,26 +156,25 @@ export function ListingFilters() {
         <div className="px-4 py-2.5 border-r border-slate-200 min-w-[220px] flex flex-col justify-center">
           <p className="text-[9px] font-black uppercase tracking-widest text-orange-500 mb-1.5">Où ?</p>
           <div className="flex items-center gap-2">
-            {location ? (
-              <span className="flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 text-xs font-semibold">
-                {location}
-                <button onClick={() => setLocation("")} className="hover:text-red-500 transition-colors ml-0.5">
-                  <X className="size-3" />
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Ville ou code postal"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && search()}
+                className="w-full pl-7 pr-6 text-sm outline-none bg-transparent placeholder:text-slate-400 text-slate-700"
+              />
+              {location && (
+                <button
+                  onClick={() => setLocation("")}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 transition-colors"
+                >
+                  <X className="size-3.5" />
                 </button>
-              </span>
-            ) : (
-              <div className="relative flex-1">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-slate-350 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Ville ou code postal"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && search()}
-                  className="w-full pl-7 pr-2 text-sm outline-none bg-transparent placeholder:text-slate-350 text-slate-700"
-                />
-              </div>
-            )}
+              )}
+            </div>
             <select value={source} onChange={(e) => setSource(e.target.value)} className={sel + " shrink-0"}>
               {SOURCES.map((s) => <option key={s.v} value={s.v}>{s.l}</option>)}
             </select>
