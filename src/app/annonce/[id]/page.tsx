@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Calculator } from "@/components/calculator";
 import { CreditTable } from "@/components/annonce/credit-table";
 import { InvestCard } from "@/components/annonce/invest-card";
+import { AnnonceNav } from "@/components/annonce/annonce-nav";
 import {
   ArrowLeft, ExternalLink, MapPin, Home, Layers, Calendar,
   Building2, TreePine, Store, Warehouse,
@@ -171,6 +172,9 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
+      {/* ── Section nav ─────────────────────────────────────────────────── */}
+      <AnnonceNav />
+
       {/* ── Main content ────────────────────────────────────────────────── */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
@@ -179,6 +183,7 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
           <div className="lg:col-span-3 space-y-4">
 
             {/* Photos */}
+            <div id="synthese" className="scroll-mt-[160px]" />
             {listing.photos.length > 0 ? (
               <div className="grid grid-cols-2 gap-2">
                 <div className="relative col-span-2 h-64 rounded-xl overflow-hidden">
@@ -290,6 +295,7 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
             )}
 
             {/* Finance details */}
+            <div id="finance" className="scroll-mt-[160px]" />
             <div className="bg-white rounded-xl border shadow-sm p-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-4">Coût d&apos;acquisition</h3>
 
@@ -333,9 +339,10 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
           </div>
 
           {/* ── Right column: invest card (sticky) + credit table ────────── */}
-          <div className="lg:col-span-2 space-y-4 lg:sticky lg:top-28 lg:self-start">
+          <div className="lg:col-span-2 space-y-4 lg:sticky lg:top-[150px] lg:self-start">
 
-            {/* Investment card — first thing visible */}
+            {/* Investment card */}
+            <div id="invest" className="scroll-mt-[160px]" />
             <InvestCard
               price={listing.price}
               surface={listing.surface}
@@ -355,6 +362,7 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
             </div>
 
             {/* Full calculator (collapsible via details) */}
+            <div id="simulation" className="scroll-mt-[160px]" />
             <details className="bg-white rounded-xl border shadow-sm overflow-hidden group">
               <summary className="p-4 cursor-pointer text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors select-none list-none flex items-center justify-between">
                 Simulation locative détaillée
