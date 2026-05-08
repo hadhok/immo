@@ -17,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <InvestProvider>
           <Navbar />
-          <main className="flex-1 overflow-hidden">{children}</main>
+          <main className="flex-1 [overflow-x:clip]">{children}</main>
         </InvestProvider>
       </body>
     </html>

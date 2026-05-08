@@ -5,9 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { Calculator } from "@/components/calculator";
 import { CreditTable } from "@/components/annonce/credit-table";
 import { InvestCard } from "@/components/annonce/invest-card";
-import { AnnonceNav } from "@/components/annonce/annonce-nav";
+import { AnnonceHeader } from "@/components/annonce/annonce-nav";
 import {
-  ArrowLeft, ExternalLink, MapPin, Home, Layers, Calendar,
+  MapPin, Home, Layers, Calendar,
   Building2, TreePine, Store, Warehouse,
 } from "lucide-react";
 
@@ -127,56 +127,31 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
   const TypeIcon = TYPE_ICONS[listing.propertyType] ?? Home;
   const sourceLabel = SOURCE_LABELS[listing.source] ?? listing.source;
 
-  const marcheBarColor =
-    vsMarche === null ? "#94a3b8"
-    : vsMarche >= 10  ? "#f87171"
-    : vsMarche <= -10 ? "#4ade80"
-    : "#fbbf24";
+  const subtitle = [
+    listing.rooms ? `T${listing.rooms}` : null,
+    listing.surface ? `${listing.surface} m²` : null,
+    `${listing.city} ${listing.zipcode}`,
+    pricePerSqm ? `${fmt(pricePerSqm)} €/m²` : null,
+    daysOnMarket > 0 ? `${daysOnMarket}j` : "Auj.",
+  ].filter(Boolean).join(" · ");
 
   return (
     <div className="min-h-screen bg-slate-50">
 
-      {/* ── Sticky top bar ──────────────────────────────────────────────── */}
-      <div className="sticky top-14 z-30 bg-[#1e2d45] text-white shadow-md">
-        <div className="max-w-6xl mx-auto px-4 h-11 flex items-center gap-4 overflow-x-auto scrollbar-hide text-sm">
-          <Link href="/" className="shrink-0 text-white/40 hover:text-white transition-colors mr-1">
-            <ArrowLeft className="size-4" />
-          </Link>
-          <span className="font-black text-base shrink-0">{fmtPrice(listing.price)}</span>
-          {(listing.rooms || listing.surface) && (
-            <span className="text-white/50 shrink-0">
-              {listing.rooms ? `T${listing.rooms}` : ""}
-              {listing.surface ? ` · ${listing.surface} m²` : ""}
-            </span>
-          )}
-          <span className="flex items-center gap-1 text-white/50 shrink-0">
-            <MapPin className="size-3 text-white/30" />
-            {listing.city} {listing.zipcode}
-          </span>
-          {vsMarche !== null && (
-            <span className="font-bold shrink-0 px-2 py-0.5 rounded text-xs"
-              style={{ background: marcheBarColor + "30", color: marcheBarColor }}>
-              {vsMarche > 0 ? "+" : ""}{vsMarche}% vs marché
-            </span>
-          )}
-          <span className="text-white/40 shrink-0">{daysOnMarket}j sur le marché</span>
-          {pricePerSqm && <span className="text-white/40 shrink-0">{fmt(pricePerSqm)} €/m²</span>}
-          <a href={listing.sourceUrl} target="_blank" rel="noopener noreferrer"
-            className="ml-auto flex items-center gap-1 text-white/40 hover:text-white transition-colors shrink-0 text-xs">
-            <ExternalLink className="size-3.5" />
-            {sourceLabel}
-          </a>
-        </div>
-      </div>
-
-      {/* ── Section nav ─────────────────────────────────────────────────── */}
-      <AnnonceNav />
+      {/* ── Unified sticky header (price bar + tabs) ────────────────────── */}
+      <AnnonceHeader
+        price={fmtPrice(listing.price)}
+        subtitle={subtitle}
+        vsMarche={vsMarche}
+        sourceUrl={listing.sourceUrl}
+        sourceLabel={sourceLabel}
+      />
 
       {/* ── Page content ────────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-10">
 
         {/* ══ SYNTHÈSE ════════════════════════════════════════════════════ */}
-        <section id="synthese" className="scroll-mt-[160px]">
+        <section id="synthese" className="scroll-mt-[170px]">
           <SectionTitle>Synthèse</SectionTitle>
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -303,7 +278,7 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
         </section>
 
         {/* ══ INVEST. ═════════════════════════════════════════════════════ */}
-        <section id="invest" className="scroll-mt-[160px]">
+        <section id="invest" className="scroll-mt-[170px]">
           <SectionTitle>Analyse Investissement</SectionTitle>
           <InvestCard
             price={listing.price}
@@ -320,7 +295,7 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
         </section>
 
         {/* ══ FINANCE ═════════════════════════════════════════════════════ */}
-        <section id="finance" className="scroll-mt-[160px]">
+        <section id="finance" className="scroll-mt-[170px]">
           <SectionTitle>Finance</SectionTitle>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -376,7 +351,7 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
         </section>
 
         {/* ══ SIMULATION ══════════════════════════════════════════════════ */}
-        <section id="simulation" className="scroll-mt-[160px]">
+        <section id="simulation" className="scroll-mt-[170px]">
           <SectionTitle>Simulation locative</SectionTitle>
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">

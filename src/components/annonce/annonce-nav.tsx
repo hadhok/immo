@@ -1,16 +1,29 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
-import { FileText, Calculator, TrendingUp, BarChart2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, MapPin, FileText, TrendingUp, Calculator, BarChart2 } from "lucide-react";
 
 const TABS = [
-  { id: "synthese",   label: "Synthèse",    Icon: FileText    },
-  { id: "invest",     label: "Invest.",      Icon: TrendingUp  },
-  { id: "finance",    label: "Finance",      Icon: Calculator  },
-  { id: "simulation", label: "Simulation",   Icon: BarChart2   },
+  { id: "synthese",   label: "Synthèse",   Icon: FileText   },
+  { id: "invest",     label: "Invest.",     Icon: TrendingUp },
+  { id: "finance",    label: "Finance",     Icon: Calculator },
+  { id: "simulation", label: "Simulation",  Icon: BarChart2  },
 ] as const;
 
-export function AnnonceNav() {
+interface Props {
+  price: string;          // formatted, e.g. "172 000 €"
+  subtitle: string;       // e.g. "T2 · 56 m² · Bordeaux 33800"
+  vsMarche: number | null;
+  sourceUrl: string;
+  sourceLabel: string;
+}
+
+function marcheColor(v: number) {
+  return v >= 10 ? "#f87171" : v <= -10 ? "#4ade80" : "#fbbf24";
+}
+
+export function AnnonceHeader({ price, subtitle, vsMarche, sourceUrl, sourceLabel }: Props) {
   const [active, setActive] = useState<string>("synthese");
 
   const scrollTo = useCallback((id: string) => {
@@ -27,7 +40,7 @@ export function AnnonceNav() {
           if (e.isIntersecting) setActive(e.target.id);
         }
       },
-      { rootMargin: "-30% 0px -60% 0px", threshold: 0 }
+      { rootMargin: "-20% 0px -70% 0px", threshold: 0 }
     );
     TABS.forEach(({ id }) => {
       const el = document.getElementById(id);
@@ -36,10 +49,49 @@ export function AnnonceNav() {
     return () => observer.disconnect();
   }, []);
 
+  const mc = vsMarche !== null ? marcheColor(vsMarche) : null;
+
   return (
-    <div className="sticky top-[100px] z-20 bg-white/95 backdrop-blur-sm border-b border-slate-100 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex gap-1 py-2">
+    <div className="sticky top-14 z-30 shadow-lg">
+
+      {/* ── Price bar ─────────────────────────────────────────────────── */}
+      <div className="bg-[#1e2d45] text-white">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
+
+          <Link href="/" className="shrink-0 text-white/40 hover:text-white transition-colors">
+            <ArrowLeft className="size-4" />
+          </Link>
+
+          {/* Price — large and prominent */}
+          <span className="text-2xl font-black tracking-tight shrink-0">{price}</span>
+
+          {/* Sub info */}
+          <span className="text-white/50 text-sm shrink-0 hidden sm:inline">{subtitle}</span>
+
+          {/* vs marché badge */}
+          {vsMarche !== null && mc && (
+            <span
+              className="font-bold shrink-0 px-2.5 py-1 rounded-lg text-xs"
+              style={{ background: mc + "25", color: mc, border: `1px solid ${mc}40` }}
+            >
+              {vsMarche > 0 ? "+" : ""}{vsMarche}% vs marché
+            </span>
+          )}
+
+          {/* External link */}
+          <a
+            href={sourceUrl} target="_blank" rel="noopener noreferrer"
+            className="ml-auto flex items-center gap-1.5 text-white/40 hover:text-white transition-colors shrink-0 text-xs"
+          >
+            <ExternalLink className="size-3.5" />
+            {sourceLabel}
+          </a>
+        </div>
+      </div>
+
+      {/* ── Tab nav ───────────────────────────────────────────────────── */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-6xl mx-auto px-4 flex gap-1 py-1.5">
           {TABS.map(({ id, label, Icon }) => (
             <button
               key={id}
