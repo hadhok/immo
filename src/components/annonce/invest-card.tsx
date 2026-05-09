@@ -121,10 +121,10 @@ function ScoreGauge({ score }: { score: number }) {
 
 function MetricCard({ label, value, sub, valueColor }: { label: string; value: string; sub: string; valueColor?: string }) {
   return (
-    <div className="flex-1 bg-slate-50 rounded-xl p-4 flex flex-col gap-1 min-w-0">
+    <div className="flex-1 bg-slate-50 rounded-xl p-4 flex flex-col gap-1.5 min-w-0">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
-      <p className="text-2xl font-black leading-tight" style={{ color: valueColor ?? "#0f172a" }}>{value}</p>
-      <p className="text-[11px] text-slate-400">{sub}</p>
+      <p className="text-3xl font-black leading-none" style={{ color: valueColor ?? "#0f172a" }}>{value}</p>
+      <p className="text-xs text-slate-400">{sub}</p>
     </div>
   );
 }
@@ -169,16 +169,16 @@ export function InvestCard({ price, surface, zipcode, propertyType, pricePerSqm,
   return (
     <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-white divide-y divide-slate-100">
 
-      {/* ── Analyse Investissement ─────────────────────────────────────── */}
+      {/* ── Score + métriques ──────────────────────────────────────────── */}
       <div className="p-6">
-        <p className="text-sm font-semibold text-slate-800 mb-5">Analyse Investissement</p>
-
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-6">
           {/* Score gauge */}
           {score !== null ? (
-            <ScoreGauge score={score} />
+            <div className="shrink-0">
+              <ScoreGauge score={score} />
+            </div>
           ) : (
-            <div className="w-[120px] h-[120px] flex items-center justify-center text-xs text-slate-400 text-center">
+            <div className="w-[120px] h-[120px] shrink-0 flex items-center justify-center text-xs text-slate-400 text-center">
               Surface<br />inconnue
             </div>
           )}
@@ -196,9 +196,9 @@ export function InvestCard({ price, surface, zipcode, propertyType, pricePerSqm,
               sub="après charges"
             />
             <MetricCard
-              label="Cashflow"
+              label="Cashflow mensuel"
               value={cashFlow !== null ? `${cashFlow >= 0 ? "+" : ""}${fmt(cashFlow)} €` : "—"}
-              sub="par mois"
+              sub={cashFlow !== null && cashFlow < 0 ? "effort d'épargne" : "flux net"}
               valueColor={cashFlow !== null ? cfColor : undefined}
             />
           </div>

@@ -84,15 +84,6 @@ async function getMarketData(zipcode: string, propertyType: string, excludeId: s
   };
 }
 
-// ─── Section header ───────────────────────────────────────────────────────────
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">
-      {children}
-    </h2>
-  );
-}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -152,8 +143,6 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
 
         {/* ══ SYNTHÈSE ════════════════════════════════════════════════════ */}
         <section id="synthese" className="scroll-mt-[170px]">
-          <SectionTitle>Synthèse</SectionTitle>
-
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
             {/* Photos */}
@@ -182,8 +171,22 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
             {/* Info panel */}
             <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col gap-4">
 
+              {/* Price — hero */}
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-slate-900 tracking-tight">{fmtPrice(listing.price)}</span>
+                {vsMarche !== null && (
+                  <span className="text-sm font-bold px-2 py-0.5 rounded-md"
+                    style={{
+                      background: (vsMarche >= 10 ? "#fef2f2" : vsMarche <= -10 ? "#f0fdf4" : "#fffbeb"),
+                      color:      (vsMarche >= 10 ? "#dc2626" : vsMarche <= -10 ? "#16a34a" : "#d97706"),
+                    }}>
+                    {vsMarche > 0 ? "+" : ""}{vsMarche}% marché
+                  </span>
+                )}
+              </div>
+
               {/* Title */}
-              <h1 className="font-bold text-lg leading-snug text-slate-900">{listing.title}</h1>
+              <h1 className="font-semibold text-base leading-snug text-slate-600 -mt-2">{listing.title}</h1>
 
               {/* Badges */}
               <div className="flex flex-wrap gap-1.5">
@@ -270,16 +273,19 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
           {listing.description && (
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mt-4">
               <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Description</p>
-              <p className="text-sm text-slate-600 whitespace-pre-line leading-relaxed">
+              <p className="text-sm text-slate-600 whitespace-pre-line leading-relaxed line-clamp-6">
                 {listing.description}
               </p>
+              <a href={listing.sourceUrl} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 mt-3 transition-colors">
+                Lire l&apos;annonce complète →
+              </a>
             </div>
           )}
         </section>
 
         {/* ══ INVEST. ═════════════════════════════════════════════════════ */}
         <section id="invest" className="scroll-mt-[170px]">
-          <SectionTitle>Analyse Investissement</SectionTitle>
           <InvestCard
             price={listing.price}
             surface={listing.surface}
@@ -296,7 +302,6 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
 
         {/* ══ FINANCE ═════════════════════════════════════════════════════ */}
         <section id="finance" className="scroll-mt-[170px]">
-          <SectionTitle>Finance</SectionTitle>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
@@ -352,7 +357,6 @@ export default async function AnnoncePage({ params }: { params: Promise<{ id: st
 
         {/* ══ SIMULATION ══════════════════════════════════════════════════ */}
         <section id="simulation" className="scroll-mt-[170px]">
-          <SectionTitle>Simulation locative</SectionTitle>
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
             {loyerEstime && (
